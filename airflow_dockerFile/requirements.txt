@@ -4,3 +4,4 @@ fsspec
 apache-airflow-providers-postgres
 apache-airflow-providers-amazon
 SQLAlchemy
+apache-airflow-providers-fab
