@@ -18,6 +18,8 @@ x-airflow-common:
     - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins/
     - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config/
   user: "${AIRFLOW_UID:-50000}:${AIRFLOW_GID:-50000}"
+  env_file:
+    - ./.env
   depends_on:
     &airflow-common-depends-on
     postgres:
