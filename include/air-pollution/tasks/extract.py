@@ -1,0 +1,72 @@
+import pendulum
+import requests
+import boto3
+import json
+import os
+
+API_KEY = os.getenv("AIR_POLLUTION_API_KEY")
+BASE_URL = os.getenv("AIR_POLLUTION_BASE_URL")
+
+def extract_air_pollution_data(city: str, lat: int|float|str, lon: int|float|str, start: int, end: int, logical_date: str) -> str:
+    """
+    Extract data from air_pollution API and load to S3.
+
+    Args:
+        city: city name,
+        lat: latitude,
+        lon: longitude,
+        start: start of the time period (timestamp),
+        end: end of the time period (timestamp),
+        logical_date: DAG execution date
+
+    Returns:
+        S3 path to stored data
+    """
+    params = {
+        "lat": lat,
+        "lon": lon,
+        "appid": API_KEY,
+        "start": start,
+        "end": end
+    }
+    
+    try:
+        print("Get data from API for city {city}...")
+        response = requests.get(BASE_URL, params)
+        response.raise_for_status()
+
+        data = response.json()
+
+        if data:
+            print("Got data from API!")
+            s3_client = boto3.client("s3")
+            
+            logical_dt = pendulum.parse(logical_date)
+            year = logical_dt.year
+            month = logical_dt.month
+            day = logical_dt.day
+            
+            s3_path = f'bronze/air_pollution/city={city}/year={year}/month={month:02d}/day={day:02d}/{int(logical_dt.timestamp())}.json'
+            json_data = json.dumps(data)
+
+            print("Load data to s3...")
+            s3_client.put_object(
+                Bucket='my-de-portfolio-raw-data-bucket-190533',
+                Key=s3_path,
+                Body=json_data.encode("UTF-8"),
+                ContentType="application/json"
+            )
+
+            print("Data successfully loaded to S3!")
+            return s3_path
+
+        else:
+            print(f"No data for city {city} (lat={lat}, lon={lon})")
+
+            from airflow.exceptions import AirflowSkipException
+            raise AirflowSkipException(f"No air pollution data available for {city}")
+
+    except requests.exceptions.HTTPError as err:
+        raise Exception(f"An HTTP error occurred: {err}")
+    except requests.exceptions.RequestException as err:
+        raise Exception(f"Another error occurred: {err}")

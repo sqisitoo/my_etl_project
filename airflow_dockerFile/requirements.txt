@@ -6,3 +6,6 @@ apache-airflow-providers-amazon
 SQLAlchemy
 apache-airflow-providers-fab
 jupyterlab
+requests
+boto3
+pendulum
