@@ -8,3 +8,4 @@ apache-airflow-providers-fab
 jupyterlab
 requests
 boto3
+pendulum
