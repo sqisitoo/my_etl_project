@@ -12,11 +12,11 @@ CONFIGPATH = os.getenv("AIR_POLLUTION_CONFIGPATH")
 def get_cities_config() -> list[dict]:
     with open(CONFIGPATH, 'r', encoding='UTF-8') as file:
         config = yaml.safe_load(file)
-        cities_config = config['cities']
+        cities_config = [{'city': city['name'], 'lat': city['lat'], 'lon': city['lon']} for city in config['cities']]
 
     return cities_config
 
-def extract_air_pollution_data(city: str, lat: int|float|str, lon: int|float|str, start: int, end: int, logical_date: str) -> str:
+def extract_air_pollution_data(*, city: str, lat: int|float|str, lon: int|float|str, start_ts: int, end_ts: int, logical_date: str) -> str:
     """
     Extract data from air_pollution API and load to S3.
 
@@ -35,8 +35,8 @@ def extract_air_pollution_data(city: str, lat: int|float|str, lon: int|float|str
         "lat": lat,
         "lon": lon,
         "appid": API_KEY,
-        "start": start,
-        "end": end
+        "start": start_ts,
+        "end": end_ts
     }
     
     try:
