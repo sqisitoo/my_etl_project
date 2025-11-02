@@ -50,12 +50,11 @@ def extract_air_pollution_data(*, city: str, lat: int|float|str, lon: int|float|
             print("Got data from API!")
             s3_client = boto3.client("s3")
             
-            logical_dt = pendulum.parse(logical_date)
-            year = logical_dt.year
-            month = logical_dt.month
-            day = logical_dt.day
+            year = logical_date.year
+            month = logical_date.month
+            day = logical_date.day
             
-            s3_path = f'bronze/air_pollution/city={city}/year={year}/month={month:02d}/day={day:02d}/{int(logical_dt.timestamp())}.json'
+            s3_path = f'bronze/air_pollution/city={city}/year={year}/month={month:02d}/day={day:02d}/{int(logical_date.timestamp())}.json'
             json_data = json.dumps(data)
 
             print("Load data to s3...")
