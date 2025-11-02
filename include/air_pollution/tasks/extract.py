@@ -3,9 +3,18 @@ import requests
 import boto3
 import json
 import os
+import yaml
 
 API_KEY = os.getenv("AIR_POLLUTION_API_KEY")
 BASE_URL = os.getenv("AIR_POLLUTION_BASE_URL")
+CONFIGPATH = os.getenv("AIR_POLLUTION_CONFIGPATH")
+
+def get_cities_config() -> list[dict]:
+    with open(CONFIGPATH, 'r', encoding='UTF-8') as file:
+        config = yaml.safe_load(file)
+        cities_config = config['cities']
+
+    return cities_config
 
 def extract_air_pollution_data(city: str, lat: int|float|str, lon: int|float|str, start: int, end: int, logical_date: str) -> str:
     """
