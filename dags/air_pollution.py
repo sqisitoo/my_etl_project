@@ -46,7 +46,7 @@ def air_pollution_dag():
 
         print(f"GOT time_range: {time_range}")
 
-        return extract_air_pollution_data(
+        s3_key_to_raw_data = extract_air_pollution_data(
             city=city_info['city'],
             lat=city_info['lat'],
             lon=city_info['lon'],
@@ -54,7 +54,24 @@ def air_pollution_dag():
             end_ts=time_range['end_ts'],
             logical_date=logical_date
             )
+        
+        return {'s3_key_to_raw_data': s3_key_to_raw_data, 'city': city_info['city']}
     
+    @task
+    def transform_data(extract_output: dict, logical_date):
+        from include.air_pollution.tasks.transform import transform_air_pollution_data
+        s3_key_to_raw_data = extract_output['s3_key_to_raw_data']
+        city = extract_output['city']
+
+        s3_key_to_transformed_data = transform_air_pollution_data(
+            s3_key=s3_key_to_raw_data,
+            city=city,
+            logical_date=logical_date
+        )
+
+        return s3_key_to_transformed_data
+        
+
     @task
     def update_last_timestamp(time_range: dict):
         new_ts = time_range['end_ts']
@@ -65,11 +82,13 @@ def air_pollution_dag():
 
     extract_tasks_group = extract_data.partial(time_range=time_range_task_output).expand(city_info=cities_to_process)
 
+    transform_tasks_group = transform_data.expand(extract_output=extract_tasks_group)
+
     update_timestamp_task = update_last_timestamp(
         time_range=time_range_task_output
     )
 
-    start >> check_api >> time_range_task_output >> extract_tasks_group >> update_timestamp_task
+    start >> check_api >> time_range_task_output >> extract_tasks_group >> transform_tasks_group >> update_timestamp_task
 
 air_pollution_dag()
 
