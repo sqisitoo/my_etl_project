@@ -1,4 +1,3 @@
-import pendulum
 import requests
 import boto3
 import json
@@ -16,7 +15,7 @@ def get_cities_config() -> list[dict]:
 
     return cities_config
 
-def extract_air_pollution_data(*, city: str, lat: int|float|str, lon: int|float|str, start_ts: int, end_ts: int, logical_date: str) -> str:
+def extract_air_pollution_data(*, city: str, lat: int|float|str, lon: int|float|str, start_ts: int, end_ts: int, logical_date) -> str:
     """
     Extract data from air_pollution API and load to S3.
 
