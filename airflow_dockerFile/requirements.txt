@@ -9,3 +9,4 @@ jupyterlab
 requests
 boto3
 pendulum
+pyarrow
