@@ -69,13 +69,15 @@ def air_pollution_dag():
             logical_date=logical_date
         )
 
-        return s3_key_to_transformed_data
+        return {'s3_key_to_transformed_data': s3_key_to_transformed_data, 'city': city}
     
     @task
-    def load_data_to_rds(transform_output: str, logical_date):
+    def load_data_to_rds(transform_output: dict, logical_date):
         from include.air_pollution.tasks.load_to_rds import load_to_rds
 
-        load_to_rds(transform_output)
+        s3_key_to_transformed_data= transform_output['s3_key_to_transformed_data']
+        city = transform_output['city']
+        load_to_rds(s3_key_to_transformed_data, city)
 
     @task
     def update_last_timestamp(time_range: dict):
