@@ -7,7 +7,8 @@ import numpy as np
 import pyarrow
 import io
 
-BUCKET_NAME =  os.getenv('AWS_S3_BUCKET_NAME')
+from include.air_pollution.utils.s3_common import load_json_from_s3
+from include.air_pollution.utils.s3_common import save_to_s3
 
 def transform_air_pollution_data(*, s3_key: str, city: str, logical_date) -> str:
     """
@@ -22,11 +23,7 @@ def transform_air_pollution_data(*, s3_key: str, city: str, logical_date) -> str
         S3 key to stored transformed data
     """
 
-    # load data from s3
-    s3 = boto3.client('s3')
-    response = s3.get_object(Bucket=BUCKET_NAME, Key=s3_key)
-    content_string = response['Body'].read().decode('UTF-8')
-    data = json.loads(content_string)
+    data = load_json_from_s3(s3_key)
 
     # extract list with essential data
     data_list = data['list']
@@ -73,11 +70,6 @@ def transform_air_pollution_data(*, s3_key: str, city: str, logical_date) -> str
             
     s3_key = f'silver/air_pollution/city={city}/year={year}/month={month:02d}/day={day:02d}/{int(logical_date.timestamp())}.parquet'
 
-    s3.put_object(
-        Bucket=BUCKET_NAME,
-        Key=s3_key,
-        Body=parquet_buffer.getvalue(),
-        ContentType='application/parquet'
-    )
+    save_to_s3(parquet_buffer.getvalue(), s3_key, 'application/parquet')
 
     return s3_key

@@ -4,10 +4,11 @@ import json
 import os
 import yaml
 
+from include.air_pollution.utils.s3_common import save_to_s3
+
 API_KEY = os.getenv("AIR_POLLUTION_API_KEY")
 BASE_URL = os.getenv("AIR_POLLUTION_BASE_URL")
 CONFIGPATH = os.getenv("AIR_POLLUTION_CONFIGPATH")
-BUCKET_NAME = os.getenv("AWS_S3_BUCKET_NAME")
 
 def get_cities_config() -> list[dict]:
     with open(CONFIGPATH, 'r', encoding='UTF-8') as file:
@@ -58,12 +59,8 @@ def extract_air_pollution_data(*, city: str, lat: int|float|str, lon: int|float|
             json_data = json.dumps(data)
 
             print("Load data to s3...")
-            s3_client.put_object(
-                Bucket=BUCKET_NAME,
-                Key=s3_path,
-                Body=json_data.encode("UTF-8"),
-                ContentType="application/json"
-            )
+
+            save_to_s3(json_data, s3_path, 'application/json')
 
             print("Data successfully loaded to S3!")
             return s3_path
