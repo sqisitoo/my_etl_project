@@ -1,0 +1,61 @@
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import SecretStr, BaseModel, computed_field, PostgresDsn, field_validator, HttpUrl, Field
+from typing import Literal
+
+
+class _AWSSettings(BaseSettings):
+
+    model_config = SettingsConfigDict(env_file=".env", env_prefix="AWS_")
+
+    access_key_id: str
+    secret_access_key: SecretStr
+    s3_bucket_name: str
+    region: Literal["eu-north-1", "eu-central-1", "eu-west-1", "eu-west-2", "eu-west-3"]
+    
+
+class _DBSettings(BaseSettings):
+
+    model_config = SettingsConfigDict(env_file=".env", env_prefix="DB_")
+
+    user: str = "postgres"
+    password: SecretStr
+    host: str
+    port: int = 5432
+    name: str
+
+    @computed_field
+    def dsn(self) -> str:
+        return str(PostgresDsn.build(
+            scheme="postgresql",
+            username=self.user,
+            password=self.password.get_secret_value(),
+            host=self.host,
+            port=self.port,
+            path=self.name
+        ))
+
+    @field_validator("port")
+    @classmethod
+    def check_port_value(cls, v: int) -> int:
+        if not 1 <= v <= 65535:
+            raise ValueError(f"Port must be between 1 and 65535, got {v}.")
+
+        return v
+
+
+class _APISettings(BaseSettings):
+
+    model_config = SettingsConfigDict(env_file=".env", env_prefix="API_")
+
+    base_url: HttpUrl
+    key: SecretStr
+
+    @property
+    def url_str(self):
+        return str(self.base_url).rstrip('/')
+
+
+class Settings(BaseModel):
+    aws: _AWSSettings = Field(default_factory=_AWSSettings)
+    db: _DBSettings = Field(default_factory=_DBSettings)
+    api: _APISettings = Field(default_factory=_APISettings)
