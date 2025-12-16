@@ -10,3 +10,5 @@ requests
 boto3
 pendulum
 pyarrow
+pydantic
+pydantic_settings
