@@ -52,7 +52,8 @@ def transform_air_pollution_data(*, s3_key: str, city: str, logical_date) -> str
 
     final_df = base_df.assign(aqi_interpretation=aqi_interpretation,
                               day_of_week=day_of_week,
-                              time_of_day=time_of_day
+                              time_of_day=time_of_day,
+                              city=city
                              )
 
     final_df = final_df.astype({
