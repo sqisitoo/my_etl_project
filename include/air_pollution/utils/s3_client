@@ -1,10 +1,12 @@
-from botocore.client import BaseClient
 import json
-from typing import Any
+from typing import Any, TYPE_CHECKING
 import logging
 import pandas as pd
 import io
 import pyarrow
+
+if TYPE_CHECKING:
+    from botocore.client import BaseClient
 
 logger = logging.getLogger(__name__)
 
