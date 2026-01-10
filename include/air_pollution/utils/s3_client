@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 class S3Service:
-    def __init__(self, bucket_name: str, s3_client: BaseClient):
+    def __init__(self, bucket_name: str, s3_client: 'BaseClient'):
         self._bucket = bucket_name
         self._client = s3_client
 
@@ -21,8 +21,8 @@ class S3Service:
             json_string = response["Body"].read().decode("UTF-8")
 
             return json.loads(json_string)
-        except Exceptions as err:
-            logger.error(f"Failed to load json from s3://{self._bucket}/{key}. Error: {e}")
+        except Exception as err:
+            logger.error(f"Failed to load json from s3://{self._bucket}/{key}. Error: {err}")
             raise
 
     def load_parquet(self, key: str) -> pd.DataFrame:
@@ -32,7 +32,7 @@ class S3Service:
             return pd.read_parquet(io.BytesIO(response["Body"].read()))
 
         except Exception as err:
-            logger.error(f"Failed to load parquet from s3://{self._bucket}/{key}. Error: {e}")
+            logger.error(f"Failed to load parquet from s3://{self._bucket}/{key}. Error: {err}")
             raise
 
     def save_df_as_parquet(self, df: pd.DataFrame, key: str) -> None:
