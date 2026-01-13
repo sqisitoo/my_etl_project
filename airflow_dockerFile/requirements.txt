@@ -3,7 +3,7 @@ s3fs
 fsspec
 apache-airflow-providers-postgres
 apache-airflow-providers-amazon
-SQLAlchemy
+sqlalchemy
 apache-airflow-providers-fab
 jupyterlab
 requests
