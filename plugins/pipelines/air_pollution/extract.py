@@ -4,10 +4,10 @@ import json
 import os
 import yaml
 
-from include.air_pollution.utils.s3_common import save_to_s3
+from plugins.common.clients.s3_common import save_to_s3
 
-API_KEY = os.getenv("AIR_POLLUTION_API_KEY")
-BASE_URL = os.getenv("AIR_POLLUTION_BASE_URL")
+API_KEY = os.getenv("API_KEY")
+BASE_URL = os.getenv("API_BASE_URL")
 CONFIGPATH = os.getenv("AIR_POLLUTION_CONFIGPATH")
 
 def get_cities_config() -> list[dict]:

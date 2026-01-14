@@ -8,7 +8,7 @@ import pyarrow.parquet as pq
 import io
 from sqlalchemy import create_engine, text
 
-from include.air_pollution.utils.s3_common import load_parquet_from_s3
+from plugins.common.clients.s3_common import load_parquet_from_s3
 
 DB_USER= os.getenv("DB_USER")
 DB_PASSWORD=os.getenv("DB_PASSWORD")

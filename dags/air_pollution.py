@@ -2,7 +2,7 @@ from airflow.providers.standard.operators.empty import EmptyOperator
 from airflow.providers.http.sensors.http import HttpSensor
 from airflow.sdk import dag, task
 from datetime import datetime, timedelta
-from include.air_pollution.tasks.extract import get_cities_config
+from plugins.pipelines.air_pollution.extract import get_cities_config
 from airflow.models.variable import Variable
 import pendulum
 
@@ -42,8 +42,7 @@ def air_pollution_dag():
 
     @task
     def extract_data(city_info: dict, time_range: dict, logical_date):
-        from include.air_pollution.tasks.extract import extract_air_pollution_data
-
+        from plugins.pipelines.air_pollution.extract import extract_air_pollution_data
         print(f"GOT time_range: {time_range}")
 
         s3_key_to_raw_data = extract_air_pollution_data(
@@ -59,7 +58,7 @@ def air_pollution_dag():
     
     @task
     def transform_data(extract_output: dict, logical_date):
-        from include.air_pollution.tasks.transform import transform_air_pollution_data
+        from plugins.pipelines.air_pollution.transform import transform_air_pollution_data
         s3_key_to_raw_data = extract_output['s3_key_to_raw_data']
         city = extract_output['city']
 
@@ -73,8 +72,7 @@ def air_pollution_dag():
     
     @task
     def load_data_to_rds(transform_output: dict, logical_date):
-        from include.air_pollution.tasks.load_to_rds import load_to_rds
-
+        from plugins.pipelines.air_pollution.load_to_rds import load_to_rds
         s3_key_to_transformed_data= transform_output['s3_key_to_transformed_data']
         city = transform_output['city']
         load_to_rds(s3_key_to_transformed_data, city)

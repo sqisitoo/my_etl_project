@@ -7,8 +7,8 @@ import numpy as np
 import pyarrow
 import io
 
-from include.air_pollution.utils.s3_common import load_json_from_s3
-from include.air_pollution.utils.s3_common import save_to_s3
+from plugins.common.clients.s3_common import load_json_from_s3
+from plugins.common.clients.s3_common import save_to_s3
 
 def transform_air_pollution_data(*, s3_key: str, city: str, logical_date) -> str:
     """
