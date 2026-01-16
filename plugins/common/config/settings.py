@@ -59,3 +59,6 @@ class Settings(BaseModel):
     aws: _AWSSettings = Field(default_factory=_AWSSettings)
     db: _DBSettings = Field(default_factory=_DBSettings)
     api: _APISettings = Field(default_factory=_APISettings)
+
+
+settings = Settings()
