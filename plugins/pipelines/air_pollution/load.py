@@ -1,42 +1,41 @@
-import boto3
-import os
-from datetime import datetime
-import json
 import pandas as pd
-import numpy as np
-import pyarrow.parquet as pq
-import io
-from sqlalchemy import create_engine, text
+from plugins.common.clients.postgres_loader import PostgresLoader
 
-from plugins.common.clients.s3_common import load_parquet_from_s3
+def load_air_pollution_data(postgres_loader: PostgresLoader, df: pd.DataFrame, city: str, table_name: str):
+    """
+    Loads air pollution data into a PostgreSQL database table.
 
-DB_USER= os.getenv("DB_USER")
-DB_PASSWORD=os.getenv("DB_PASSWORD")
-DB_HOST=os.getenv("DB_HOST")
-DB_PORT=os.getenv("DB_PORT")
-DB_NAME=os.getenv("DB_NAME")
+    This function deletes existing records for the specified city and datetime range
+    in the target table before inserting new data from the provided DataFrame.
 
-def load_to_rds(path_to_transformed_data: str, city: str):
-    df = load_parquet_from_s3(path_to_transformed_data)
+    Args:
+        postgres_loader (PostgresLoader): An instance of PostgresLoader to interact with the database.
+        df (pd.DataFrame): A DataFrame containing air pollution data to be loaded.
+                           Must include a 'datetime' column.
+        city (str): The name of the city for which data is being loaded.
+        table_name (str): The name of the target database table.
 
-    connection_string = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-    engine = create_engine(connection_string)
+    Raises:
+        ValueError: If the DataFrame does not contain a 'datetime' column.
+    """
+    # Ensure the DataFrame contains the required 'datetime' column
+    if "datetime" not in df.columns:
+        raise ValueError("The DataFrame must contain a 'datetime' column.")
 
-    with engine.begin() as connection:
+    # SQL query to delete existing records for the specified city and datetime range
+    delete_query = f"""
+        DELETE FROM {table_name}
+        WHERE city = :city
+        AND datetime >= :min_datetime
+        AND datetime <= :max_datetime
+    """
 
-        min_date = df['date'].min()
-        max_date = df['date'].max()
+    # Parameters for the delete query, derived from the DataFrame and city argument
+    params = {
+        "city": city,
+        "min_datetime": df["datetime"].min(),  # Minimum datetime in the DataFrame
+        "max_datetime": df["datetime"].max()   # Maximum datetime in the DataFrame
+    }
 
-        delete_query = text(f"""
-            DELETE FROM air_pollution
-            WHERE date >= :min_date 
-            AND date <= :max_date
-            AND city = :city
-        """)
-
-        connection.execute(delete_query, {'city': city, 'min_date': min_date, 'max_date': max_date})
-
-        df.to_sql(name='air_pollution', con=connection, if_exists='append', index=False)
-    
-
-
+    # Load the DataFrame into the database table, with cleanup using the delete query
+    postgres_loader.load_df(df, table_name=table_name, cleanup_query=delete_query, cleanup_params=params)
