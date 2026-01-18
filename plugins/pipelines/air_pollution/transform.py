@@ -1,76 +1,76 @@
-import boto3
-import os
 from datetime import datetime
 import json
 import pandas as pd
 import numpy as np
-import pyarrow
-import io
+from typing import Any
+import logging
 
-from plugins.common.clients.s3_common import load_json_from_s3
-from plugins.common.clients.s3_common import save_to_s3
+logger = logging.getLogger(__name__)
 
-def transform_air_pollution_data(*, s3_key: str, city: str, logical_date) -> str:
+def transform_air_pollution_raw_data(raw_data: dict[str, Any], city: str) -> pd.DataFrame:
     """
-    Transforms raw air_pollution_data and load to s3.
+    Transforms raw JSON data from OpenWeather Air Pollution API into a structured DataFrame.
+
+    This is a pure function: it contains no I/O operations (S3/DB calls).
+    It performs normalization, cleaning, type casting, and data enrichment.
 
     Args:
-        s3_key: s3 key to stored raw data
-        city: city name,
-        logical_date: DAG execution date
+        raw_data (Dict[str, Any]): The raw JSON response dictionary containing a 'list' key.
+        city (str): The name of the city to add as a column for partitioning/identification.
 
     Returns:
-        S3 key to stored transformed data
+        pd.DataFrame: A processed DataFrame ready for storage (Silver layer).
+
+    Raises:
+        ValueError: If the input data is empty or malformed.
+        KeyError: If expected columns are missing in the source data.
     """
 
-    data = load_json_from_s3(s3_key)
+    # 1. Validation (Fail Fast)
+    if "list" not in raw_data or not raw_data["list"]:
+        logger.info("Input data failed. 'list' key missing or empty")
+        raise ValueError("Data is empty or invalid structure")
 
-    # extract list with essential data
-    data_list = data['list']
-    # create dicts list for DataFrame creating
-    lst = [
-            {'date': datetime.fromtimestamp(data_dict['dt']),
-             'aqi': data_dict['main']['aqi'],
-             'no': data_dict['components']['no'],
-             'no2': data_dict['components']['no2'],
-             'o3': data_dict['components']['o3'],
-             'so2': data_dict['components']['so2'],
-             'pm2_5': data_dict['components']['pm2_5'],
-             'pm10': data_dict['components']['pm10'],
-             'nh3': data_dict['components']['nh3']
-            } for data_dict in data_list]
-
-    # create base DataFrame
-    base_df = pd.DataFrame(lst)
-
-    #data encrichment
-    aqi_categories = {1: 'good', 2: 'fair', 3: 'moderate', 4: 'poor', 5: 'very poor'}
-    aqi_interpretation = base_df['aqi'].map(aqi_categories)
+    # 2. Normalization (Flattening)
+    df = pd.json_normalize(raw_data["list"])
     
-    day_of_week = base_df['date'].dt.day_name()
-    time_of_day = base_df['date'].apply(lambda row: row.strftime('%H:%M'))
+    # 3. Column Selection & Renaming
+    rename_map = {
+        'dt': 'date',
+        'main.aqi': 'aqi',
+        'components.no': 'no',
+        'components.no2': 'no2',
+        'components.o3': 'o3',
+        'components.so2': 'so2',
+        'components.pm2_5': 'pm2_5',
+        'components.pm10': 'pm10',
+        'components.nh3': 'nh3'
+    }
+    
+    # Schema Validation
+    missing_columns = set(rename_map) - set(df.columns)
+    if missing_columns:
+        logger.error(f"Schema mismatch. Missing columns: {missing_columns}")
+        raise KeyError(f"Missing expected columns in source data: {missing_columns}")
 
-    final_df = base_df.assign(aqi_interpretation=aqi_interpretation,
-                              day_of_week=day_of_week,
-                              time_of_day=time_of_day,
-                              city=city
-                             )
+    # Select and rename in one go
+    df = df[rename_map.keys()].rename(columns=rename_map)
 
-    final_df = final_df.astype({
-        'aqi_interpretation': 'category',
-        'day_of_week': 'category'
-    })
+    # 4. Type Casting & Feature Engineering (Vectorized operations)
+    # Convert Unix timestamp to datetime object
+    df["datetime"] = pd.to_datetime(df["date"], unit="s")
 
-    parquet_buffer = io.BytesIO()
+    # Map AQI numeric values to human-readable categories
+    aqi_categories = {1: 'good', 2: 'fair', 3: 'moderate', 4: 'poor', 5: 'very poor'}
+    df["aqi_interpretation"] = df["aqi"].map(aqi_categories).astype("category")
 
-    final_df.to_parquet(parquet_buffer, engine='pyarrow', index=False)
+    # Extract temporal features using .dt accessor
+    df["day_of_week"] = df["datetime"].dt.day_name().astype("category")
+    df["time_of_day"] = df["datetime"].dt.strftime("%H:%M")
+    
+    # Add partition column
+    df["city"] = city
 
-    year = logical_date.year
-    month = logical_date.month
-    day = logical_date.day
-            
-    s3_key = f'silver/air_pollution/city={city}/year={year}/month={month:02d}/day={day:02d}/{int(logical_date.timestamp())}.parquet'
+    logger.info(f"Transformation complete for city={city}. Final shape: {df.shape}")
 
-    save_to_s3(parquet_buffer.getvalue(), s3_key, 'application/parquet')
-
-    return s3_key
+    return df
