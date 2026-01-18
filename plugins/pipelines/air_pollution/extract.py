@@ -1,77 +1,52 @@
-import requests
-import boto3
-import json
-import os
-import yaml
+import logging
+from datetime import datetime
+from airflow.exceptions import AirflowSkipException
+from plugins.common.clients.open_weather_client import OpenWeatherApiClient
+from plugins.common.clients.s3_client import S3Service
 
-from plugins.common.clients.s3_common import save_to_s3
+logger = logging.getLogger(__name__)
 
-API_KEY = os.getenv("API_KEY")
-BASE_URL = os.getenv("API_BASE_URL")
-CONFIGPATH = os.getenv("AIR_POLLUTION_CONFIGPATH")
-
-def get_cities_config() -> list[dict]:
-    with open(CONFIGPATH, 'r', encoding='UTF-8') as file:
-        config = yaml.safe_load(file)
-        cities_config = [{'city': city['name'], 'lat': city['lat'], 'lon': city['lon']} for city in config['cities']]
-
-    return cities_config
-
-def extract_air_pollution_data(*, city: str, lat: int|float|str, lon: int|float|str, start_ts: int, end_ts: int, logical_date) -> str:
+def extract_and_store(*, city: str, open_weather_client: OpenWeatherApiClient, s3_service: S3Service, lat: float, lon: float, start_ts: int, end_ts: int, logical_date: datetime) -> str:
     """
-    Extract data from air_pollution API and load to S3.
+    Extracts historical air pollution data for a specified city and stores it in S3.
 
     Args:
-        city: city name,
-        lat: latitude,
-        lon: longitude,
-        start: start of the time period (timestamp),
-        end: end of the time period (timestamp),
-        logical_date: DAG execution date
+        city (str): The name of the city for which to extract air pollution data.
+        open_weather_client (OpenWeatherApiClient): An instance of OpenWeatherApiClient to fetch data from the OpenWeather API.
+        s3_service (S3Service): An instance of S3Service to handle saving data to S3.
+        lat (float): The latitude of the city.
+        lon (float): The longitude of the city.
+        start_ts (int): The start timestamp for the data extraction (in seconds since epoch).
+        end_ts (int): The end timestamp for the data extraction (in seconds since epoch).
+        logical_date (datetime): The logical date for which the data is being extracted.
+
+    Raises:
+        AirflowSkipException: If no data is found for the specified latitude and longitude.
 
     Returns:
-        S3 path to stored data
+        str: The S3 key where the extracted data is stored.
     """
-    params = {
-        "lat": lat,
-        "lon": lon,
-        "appid": API_KEY,
-        "start": start_ts,
-        "end": end_ts
-    }
+
+    # Fetch historical air pollution data from the OpenWeather API
+    data = open_weather_client.get_historical_airpollution_data(lat=lat, lon=lon, start_ts=start_ts, end_ts=end_ts)
+
+    # Validate that the API response contains data
+    if not data.get('list'):
+        logger.warning(f"No data found for lat:{lat}, lon:{lon}")
+        # Skip the task if the API returns an empty result
+        raise AirflowSkipException(f"API retutned empty list for lat:{lat}, lon:{lon}")
+    # Path generation (Naming convention)
+    s3_key = (
+        f"bronze/air_pollution/"
+        f"city={city}/"
+        f"year={logical_date.year}/"
+        f"month={logical_date.month:02d}/"
+        f"day={logical_date.day:02d}/"
+        f"{int(logical_date.timestamp())}.json"
+    )
+
+    # Saving
+    s3_service.save_dict_as_json(data, s3_key)
     
-    try:
-        print("Get data from API for city {city}...")
-        response = requests.get(BASE_URL, params)
-        response.raise_for_status()
-
-        data = response.json()
-
-        if data:
-            print("Got data from API!")
-            s3_client = boto3.client("s3")
-            
-            year = logical_date.year
-            month = logical_date.month
-            day = logical_date.day
-            
-            s3_path = f'bronze/air_pollution/city={city}/year={year}/month={month:02d}/day={day:02d}/{int(logical_date.timestamp())}.json'
-            json_data = json.dumps(data)
-
-            print("Load data to s3...")
-
-            save_to_s3(json_data, s3_path, 'application/json')
-
-            print("Data successfully loaded to S3!")
-            return s3_path
-
-        else:
-            print(f"No data for city {city} (lat={lat}, lon={lon})")
-
-            from airflow.exceptions import AirflowSkipException
-            raise AirflowSkipException(f"No air pollution data available for {city}")
-
-    except requests.exceptions.HTTPError as err:
-        raise Exception(f"An HTTP error occurred: {err}")
-    except requests.exceptions.RequestException as err:
-        raise Exception(f"Another error occurred: {err}")
+    # Return the S3 path for use in subsequent pipeline stages
+    return s3_key
