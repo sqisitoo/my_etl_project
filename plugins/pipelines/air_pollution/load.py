@@ -1,7 +1,12 @@
 import pandas as pd
 from plugins.common.clients.postgres_loader import PostgresLoader
 
-def load_air_pollution_data(postgres_loader: PostgresLoader, df: pd.DataFrame, city: str, table_name: str):
+def load_air_pollution_data(
+        postgres_loader: PostgresLoader,
+        df: pd.DataFrame, 
+        city: str, 
+        table_name: str = "air_pollution"
+        ):
     """
     Loads air pollution data into a PostgreSQL database table.
 
@@ -13,7 +18,7 @@ def load_air_pollution_data(postgres_loader: PostgresLoader, df: pd.DataFrame, c
         df (pd.DataFrame): A DataFrame containing air pollution data to be loaded.
                            Must include a 'datetime' column.
         city (str): The name of the city for which data is being loaded.
-        table_name (str): The name of the target database table.
+        table_name (str): The name of the target database table. Default value is 'air_pollution'.
 
     Raises:
         ValueError: If the DataFrame does not contain a 'datetime' column.
