@@ -27,7 +27,7 @@ class S3Service:
 
     def load_parquet(self, key: str) -> pd.DataFrame:
         try:
-            response = self._clietn.get_object(Bucket=self._bucket, Key=key)
+            response = self._client.get_object(Bucket=self._bucket, Key=key)
 
             return pd.read_parquet(io.BytesIO(response["Body"].read()))
 
@@ -45,7 +45,7 @@ class S3Service:
                 self._client.put_object(
                     Bucket=self._bucket,
                     Key=key,
-                    Body=buffer.get_value(),
+                    Body=buffer.getvalue(),
                     ContentType='application/vnd.apache.parquet'
                 )
 
