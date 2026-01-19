@@ -10,51 +10,78 @@ logger = logging.getLogger(__name__)
 
 class OpenWeatherApiClient:
     """
-    Client for interacting with the OpenWeatherMap API.
-    Handles session management, retries, and authentication.
+    HTTP client for the OpenWeatherMap API.
+    
+    Features:
+    - Automatic retry logic for resilient API calls (5xx errors)
+    - Secure API key management using Pydantic SecretStr
+    - Session pooling for efficient connection reuse
+    - Context manager support for proper resource cleanup
     """
 
     def __init__(self, base_url: str, api_key: SecretStr):
         """
-        Initializes the API client.
+        Initialize the OpenWeatherMap API client.
 
-        :param base_url: The base endpoint URL for the API.
-        :param api_key: API Key wrapped in SecretStr for security.
-        :param timeout: Default timeout for HTTP requests in seconds.
+        Args:
+            base_url: Full endpoint URL (e.g., 'https://api.openweathermap.org/data/2.5/air_pollution/history')
+            api_key: OpenWeather API key wrapped in SecretStr for secure handling
         """
-
+        # Store base URL without trailing slash for consistent path construction
         self.base_url = base_url.rstrip('/')
         self.api_key = api_key
 
+        # Create a persistent session for connection pooling
         self.session = requests.Session()
 
-        # Configure automatic retries for robust network interactions
-        # We retry on 5xx errors (server side issues) but not on 4xx (client errors)
-        retries = Retry(total=5, backoff_factor=1, allowed_methods=["GET"], status_forcelist=[500, 502, 503, 504])
+        # Configure retry strategy: retry up to 5 times on server errors (5xx)
+        # Use exponential backoff (1s, 2s, 4s, 8s, 16s) between retries
+        # Only retry GET requests to avoid unintended side effects
+        retries = Retry(
+            total=5,
+            backoff_factor=1,
+            allowed_methods=["GET"],
+            status_forcelist=[500, 502, 503, 504]  # Retry on server errors only
+        )
 
+        # Mount retry adapter to both HTTP and HTTPS
         adapter = HTTPAdapter(max_retries=retries)
         self.session.mount("http://", adapter=adapter)
         self.session.mount("https://", adapter=adapter)
 
+        # Set default query parameter (API key) for all requests
         self.session.params = {
             "appid": api_key.get_secret_value()
         }
 
-        logger.info("Initialize OpenWeatherApiClient and start requests session")
+        logger.info("OpenWeatherApiClient initialized with session pooling enabled")
 
-    def get_historical_airpollution_data(self, city: str, lat: str|int|float, lon: str|int|float, start_ts: int, end_ts: int) -> dict[str, Any]:
+    def get_historical_airpollution_data(
+        self, 
+        city: str, 
+        lat: float, 
+        lon: float, 
+        start_ts: int | float, 
+        end_ts: int | float
+    ) -> dict[str, Any]:
         """
-        Fetches historical air pollution data for a specific location and time range.
+        Retrieve historical air pollution data for a specific location and time range.
 
-        :param city: Name of the city (used for logging context only).
-        :param lat: Latitude.
-        :param lon: Longitude.
-        :param start_ts: Start timestamp (Unix).
-        :param end_ts: End timestamp (Unix).
-        :return: Dictionary containing the API response.
-        :raises requests.HTTPError: If the API returns a non-200 status code.
+        Args:
+            city: City name (for logging context only, not sent to API)
+            lat: Latitude coordinate
+            lon: Longitude coordinate
+            start_ts: Unix timestamp (seconds) marking the start of the time range
+            end_ts: Unix timestamp (seconds) marking the end of the time range
+
+        Returns:
+            Dictionary containing the parsed JSON response from OpenWeatherMap API
+
+        Raises:
+            requests.HTTPError: If the API returns an error status code (after retries)
+            requests.RequestException: For network-related errors
         """
-                
+        # Build query parameters for the API request
         params = {
             "lat": lat,
             "lon": lon,
@@ -63,27 +90,46 @@ class OpenWeatherApiClient:
         }
 
         try:
-            logger.info(f"Fetching data for city={city}(lat={lat}, lon={lon}), range={start_ts}-{end_ts}")
+            logger.info(
+                f"Fetching air pollution data for {city} "
+                f"(lat={lat}, lon={lon}), time range={start_ts}-{end_ts}"
+            )
 
-            # base_url is assumed to be the full endpoint path (e.g. .../air_pollution/history)
+            # Make GET request to the configured endpoint
+            # Session automatically includes API key in params
+            # Timeout prevents hanging connections
             response = self.session.get(self.base_url, params=params, timeout=10)
-            response.raise_for_status()
+            response.raise_for_status()  # Raise exception for non-2xx status codes
 
             return response.json()
 
         except requests.HTTPError as e:
-            logger.error(f"HTTP Error from OpenWeatherMap: {e}")
+            logger.error(f"HTTP error from OpenWeatherMap API: {e.response.status_code} - {e}")
+            raise
+        except requests.RequestException as e:
+            logger.error(f"Network error while fetching air pollution data: {e}")
             raise
         except Exception as e:
-            logger.error(f"Unexpected Error: {e}")
+            logger.error(f"Unexpected error: {e}")
             raise
     
     def __enter__(self):
+        """Support using the client as a context manager."""
         return self
     
     def __exit__(self, exc_type, exc_value, exc_tb):
+        """
+        Clean up resources when exiting the context manager.
+        
+        Args:
+            exc_type: Exception type if an error occurred, None otherwise
+            exc_value: Exception instance if an error occurred, None otherwise
+            exc_tb: Traceback object if an error occurred, None otherwise
+        """
+        # Log any exceptions that occurred within the context
         if exc_type:
-            logger.error(f"An error occurred: {exc_value}")
+            logger.error(f"Context exited with error: {exc_type.__name__}: {exc_value}")
 
+        # Close the session to release connection pool resources
         self.session.close()
-        logger.info("Requests session closed successfully")
+        logger.info("Session closed and resources cleaned up")
