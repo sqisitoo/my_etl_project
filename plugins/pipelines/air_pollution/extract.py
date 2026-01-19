@@ -6,7 +6,7 @@ from plugins.common.clients.s3_client import S3Service
 
 logger = logging.getLogger(__name__)
 
-def extract_and_store(*, city: str, open_weather_client: OpenWeatherApiClient, s3_service: S3Service, lat: float, lon: float, start_ts: int, end_ts: int, logical_date: datetime) -> str:
+def extract_and_store(*, city: str, open_weather_client: OpenWeatherApiClient, s3_service: S3Service, lat: float, lon: float, start_ts: int|float, end_ts: int|float, logical_date: datetime) -> str:
     """
     Extracts historical air pollution data for a specified city and stores it in S3.
 
@@ -16,8 +16,8 @@ def extract_and_store(*, city: str, open_weather_client: OpenWeatherApiClient, s
         s3_service (S3Service): An instance of S3Service to handle saving data to S3.
         lat (float): The latitude of the city.
         lon (float): The longitude of the city.
-        start_ts (int): The start timestamp for the data extraction (in seconds since epoch).
-        end_ts (int): The end timestamp for the data extraction (in seconds since epoch).
+        start_ts (int|float): The start timestamp for the data extraction (in seconds since epoch).
+        end_ts (int|float): The end timestamp for the data extraction (in seconds since epoch).
         logical_date (datetime): The logical date for which the data is being extracted.
 
     Raises:
@@ -28,7 +28,7 @@ def extract_and_store(*, city: str, open_weather_client: OpenWeatherApiClient, s
     """
 
     # Fetch historical air pollution data from the OpenWeather API
-    data = open_weather_client.get_historical_airpollution_data(lat=lat, lon=lon, start_ts=start_ts, end_ts=end_ts)
+    data = open_weather_client.get_historical_airpollution_data(city=city, lat=lat, lon=lon, start_ts=start_ts, end_ts=end_ts)
 
     # Validate that the API response contains data
     if not data.get('list'):
