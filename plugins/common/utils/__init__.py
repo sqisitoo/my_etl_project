@@ -1,1 +1,1 @@
-from .load_yaml import load_yaml
+from plugins.common.utils.load_yaml import load_yaml
