@@ -6,16 +6,21 @@ x-airflow-common:
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
-    AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW__CORE__FERNET_KEY: 'AyM8_sM5y8_sM5y8_sM5y8_sM5y8_sM5y8_sM5y8_sM='
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-apiserver:8080/execution/'
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
     AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
+    AIRFLOW_CONN_AWS_DEFAULT: 'aws://?extra={"aws_access_key_id":"${AWS_ACCESS_KEY_ID}","aws_secret_access_key":"${AWS_SECRET_ACCESS_KEY}","region_name":"${AWS_REGION}"}'
+    AIRFLOW_CONN_MY_POSTGRES_DWH: 'postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}'
+    AIRFLOW__API_AUTH__JWT_SECRET: 'AyM8_sM5y8_sM5y8_sM5y8_sM5y8_sM5y8_sM5y8_sM='
+    AIRFLOW__API__SECRET_KEY: '= HyGZz9cZ/Wfo8+CTZlQSOw=='
+    AIRFLOW__SCHEDULER__CREATE_CRON_DATA_INTERVALS: 'true'
   volumes:
     - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags/
     - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins/
-    - airflow_logs:/opt/airflow/logs
+    - airflow_logs:/opt/airflow/logsdoc
   user: "${AIRFLOW_UID:-50000}:${AIRFLOW_GID:-50000}"
   env_file:
     - ./.env
