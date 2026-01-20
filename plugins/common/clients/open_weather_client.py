@@ -85,8 +85,8 @@ class OpenWeatherApiClient:
         params = {
             "lat": lat,
             "lon": lon,
-            "start": start_ts,
-            "end": end_ts
+            "start": int(start_ts),
+            "end": int(end_ts)
         }
 
         try:
