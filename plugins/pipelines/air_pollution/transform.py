@@ -59,14 +59,15 @@ def transform_air_pollution_raw_data(raw_data: dict[str, Any], city: str) -> pd.
     # 4. Type Casting & Feature Engineering (Vectorized operations)
     # Convert Unix timestamp to datetime object
     df["measured_at"] = pd.to_datetime(df["date"], unit="s").dt.tz_localize('UTC')
+    df = df.drop(columns=['date'])
 
     # Map AQI numeric values to human-readable categories
     aqi_categories = {1: 'good', 2: 'fair', 3: 'moderate', 4: 'poor', 5: 'very poor'}
     df["aqi_interpretation"] = df["aqi"].map(aqi_categories).astype("category")
 
     # Extract temporal features using .dt accessor
-    df["day_of_week"] = df["datetime"].dt.day_name().astype("category")
-    df["time_of_day"] = df["datetime"].dt.strftime("%H:%M")
+    df["day_of_week"] = df["measured_at"].dt.day_name().astype("category")
+    df["time_of_day"] = df["measured_at"].dt.strftime("%H:%M")
     
     # Add partition column
     df["city"] = city
