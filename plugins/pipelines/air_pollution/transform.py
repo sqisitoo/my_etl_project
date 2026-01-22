@@ -58,7 +58,7 @@ def transform_air_pollution_raw_data(raw_data: dict[str, Any], city: str) -> pd.
 
     # 4. Type Casting & Feature Engineering (Vectorized operations)
     # Convert Unix timestamp to datetime object
-    df["datetime"] = pd.to_datetime(df["date"], unit="s")
+    df["measured_at"] = pd.to_datetime(df["date"], unit="s").dt.tz_localize('UTC')
 
     # Map AQI numeric values to human-readable categories
     aqi_categories = {1: 'good', 2: 'fair', 3: 'moderate', 4: 'poor', 5: 'very poor'}
