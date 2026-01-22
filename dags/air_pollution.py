@@ -2,12 +2,12 @@ from airflow.providers.standard.operators.empty import EmptyOperator
 from airflow.providers.http.sensors.http import HttpSensor
 from airflow.sdk import dag, task
 from datetime import datetime, timedelta
-from plugins.pipelines.air_pollution.extract import get_cities_config
 from airflow.models.variable import Variable
-import pendulum
+from plugins.common.config import settings
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator
 
-cities_to_process = get_cities_config()
 
+PLUGINS_DIR="/opt/airflow/plugins" 
 
 
 @dag(
@@ -15,6 +15,7 @@ cities_to_process = get_cities_config()
     start_date=datetime(2025, 11, 1),
     schedule='@daily',
     catchup=False,
+    template_searchpath=[PLUGINS_DIR],
     default_args={
         "retries": 2,
         "retry_delay": timedelta(minutes=1)
@@ -22,80 +23,111 @@ cities_to_process = get_cities_config()
 )
 def air_pollution_dag():
     
-    start = EmptyOperator(task_id="start")
 
-    check_api = HttpSensor(
-        task_id="check_api_availability",
-        http_conn_id="weathermap_api",
-        endpoint="/data/2.5/air_pollution/history",
-        response_check=lambda response: response.status_code in [200, 401],
-        extra_options={'check_response': False}
+    @task
+    def get_cities_config():
+        from plugins.common.config.cities import get_cities_config
+
+        config_obj = get_cities_config()
+
+        return [city.model_dump() for city in config_obj.cities]
+    
+    init_table = SQLExecuteQueryOperator(
+        task_id="init_schema",
+        sql="pipelines/air_pollution/sql/init_schema.sql",
+        conn_id="my_postgres_dwh"
     )
 
     @task
-    def get_current_timestamps_range():
-        start_ts = int(Variable.get('air_pollution_last_ts'))
-        end_ts = int(pendulum.now(tz='UTC').timestamp())
+    def extract_data(city_info: dict, logical_date, data_interval_start, data_interval_end):
+        from plugins.common.clients.open_weather_client import OpenWeatherApiClient
+        from plugins.common.clients.s3_client import S3Service
+        from plugins.pipelines.air_pollution.extract import extract_and_store
+        from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+        
+        api_client = OpenWeatherApiClient(
+            base_url=settings.api.url_str,
+            api_key=settings.api.key
+        )
 
-        time_range = {'start_ts': start_ts, 'end_ts': end_ts}
-        return time_range
+        s3_hook = S3Hook(aws_conn_id='aws_default')
+        boto3_client = s3_hook.get_conn()
+        s3_service = S3Service(settings.aws.s3_bucket_name, s3_client=boto3_client)  # type: ignore
 
-    @task
-    def extract_data(city_info: dict, time_range: dict, logical_date):
-        from plugins.pipelines.air_pollution.extract import extract_air_pollution_data
-        print(f"GOT time_range: {time_range}")
-
-        s3_key_to_raw_data = extract_air_pollution_data(
-            city=city_info['city'],
+        s3_key_to_raw_data = extract_and_store(
+            city=city_info['name'],
             lat=city_info['lat'],
             lon=city_info['lon'],
-            start_ts=time_range['start_ts'],
-            end_ts=time_range['end_ts'],
-            logical_date=logical_date
-            )
+            logical_date=logical_date,
+            open_weather_client=api_client,
+            s3_service=s3_service,
+            start_ts=data_interval_start.timestamp(),
+            end_ts=data_interval_end.timestamp()
+        )
         
-        return {'s3_key_to_raw_data': s3_key_to_raw_data, 'city': city_info['city']}
+        return {'s3_key_to_raw_data': s3_key_to_raw_data, 'city': city_info['name']}
     
     @task
     def transform_data(extract_output: dict, logical_date):
-        from plugins.pipelines.air_pollution.transform import transform_air_pollution_data
+        from plugins.pipelines.air_pollution.transform import transform_air_pollution_raw_data
+        from plugins.common.clients.s3_client import S3Service
+        from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+
         s3_key_to_raw_data = extract_output['s3_key_to_raw_data']
         city = extract_output['city']
 
-        s3_key_to_transformed_data = transform_air_pollution_data(
-            s3_key=s3_key_to_raw_data,
-            city=city,
-            logical_date=logical_date
-        )
+        s3_hook = S3Hook(aws_conn_id='aws_default')
+        boto3_client = s3_hook.get_conn()
+        s3_service = S3Service(settings.aws.s3_bucket_name, s3_client=boto3_client)  # type: ignore
 
-        return {'s3_key_to_transformed_data': s3_key_to_transformed_data, 'city': city}
+        air_pollution_raw_data = s3_service.load_json(s3_key_to_raw_data)
+        transformed_data = transform_air_pollution_raw_data(air_pollution_raw_data, city)
+
+        s3_key = (
+        f"silver/air_pollution/"
+        f"city={city}/"
+        f"year={logical_date.year}/"
+        f"month={logical_date.month:02d}/"
+        f"day={logical_date.day:02d}/"
+        f"{int(logical_date.timestamp())}.parquet"
+        )
+        s3_service.save_df_as_parquet(transformed_data, s3_key)
+
+        return {'s3_key_to_transformed_data': s3_key, 'city': city}
     
     @task
     def load_data_to_rds(transform_output: dict, logical_date):
-        from plugins.pipelines.air_pollution.load_to_rds import load_to_rds
+        from plugins.common.clients.postgres_loader import PostgresLoader
+        from plugins.common.clients.s3_client import S3Service
+        from plugins.pipelines.air_pollution.load import load_air_pollution_data
+        from airflow.providers.postgres.hooks.postgres import PostgresHook
+        from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+        
         s3_key_to_transformed_data= transform_output['s3_key_to_transformed_data']
         city = transform_output['city']
-        load_to_rds(s3_key_to_transformed_data, city)
 
-    @task
-    def update_last_timestamp(time_range: dict):
-        new_ts = time_range['end_ts']
-        Variable.set('air_pollution_last_ts', str(new_ts))
-        print(f"Last timestamp updated to: {new_ts}")
+        s3_hook = S3Hook(aws_conn_id='aws_default')
+        boto3_client = s3_hook.get_conn()
+        s3_service = S3Service(settings.aws.s3_bucket_name, s3_client=boto3_client)  # type: ignore
+        df = s3_service.load_parquet(s3_key_to_transformed_data)
 
-    time_range_task_output = get_current_timestamps_range()
+        pg_hook = PostgresHook(postgres_conn_id="my_postgres_dwh")
+        engine = pg_hook.get_sqlalchemy_engine()
 
-    extract_tasks_group = extract_data.partial(time_range=time_range_task_output).expand(city_info=cities_to_process)
+        postgres_loader = PostgresLoader(engine=engine)
+
+        load_air_pollution_data(postgres_loader=postgres_loader, df=df, city=city)
+
+
+    get_cities_config_task = get_cities_config()
+
+    extract_tasks_group = extract_data.expand(city_info=get_cities_config_task)
 
     transform_tasks_group = transform_data.expand(extract_output=extract_tasks_group)
 
     load_tasks_group = load_data_to_rds.expand(transform_output=transform_tasks_group)
 
-    update_timestamp_task = update_last_timestamp(
-        time_range=time_range_task_output
-    )
-
-    start >> check_api >> time_range_task_output >> extract_tasks_group >> transform_tasks_group >> load_tasks_group >> update_timestamp_task
+    init_table >> get_cities_config_task
 
 air_pollution_dag()
 
