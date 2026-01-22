@@ -21,25 +21,25 @@ def load_air_pollution_data(
         table_name (str): The name of the target database table. Default value is 'air_pollution'.
 
     Raises:
-        ValueError: If the DataFrame does not contain a 'datetime' column.
+        ValueError: If the DataFrame does not contain a 'measured_at' column.
     """
     # Ensure the DataFrame contains the required 'datetime' column
-    if "datetime" not in df.columns:
-        raise ValueError("The DataFrame must contain a 'datetime' column.")
+    if "measured_at" not in df.columns:
+        raise ValueError("The DataFrame must contain a 'measured_at' column.")
 
     # SQL query to delete existing records for the specified city and datetime range
     delete_query = f"""
         DELETE FROM {table_name}
         WHERE city = :city
-        AND datetime >= :min_datetime
-        AND datetime <= :max_datetime
+        AND measured_at >= :min_datetime
+        AND measured_at <= :max_datetime
     """
 
     # Parameters for the delete query, derived from the DataFrame and city argument
     params = {
         "city": city,
-        "min_datetime": df["datetime"].min(),  # Minimum datetime in the DataFrame
-        "max_datetime": df["datetime"].max()   # Maximum datetime in the DataFrame
+        "min_datetime": df["measured_at"].min(),  # Minimum datetime in the DataFrame
+        "max_datetime": df["measured_at"].max()   # Maximum datetime in the DataFrame
     }
 
     # Load the DataFrame into the database table, with cleanup using the delete query
