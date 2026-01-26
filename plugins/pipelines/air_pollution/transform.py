@@ -44,7 +44,8 @@ def transform_air_pollution_raw_data(raw_data: dict[str, Any], city: str) -> pd.
         'components.so2': 'so2',
         'components.pm2_5': 'pm2_5',
         'components.pm10': 'pm10',
-        'components.nh3': 'nh3'
+        'components.nh3': 'nh3',
+        'components.co': 'co'
     }
     
     # Schema Validation
