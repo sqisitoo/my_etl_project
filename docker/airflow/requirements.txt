@@ -12,3 +12,4 @@ pendulum
 pyarrow
 pydantic
 pydantic_settings
+pytest
