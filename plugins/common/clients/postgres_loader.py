@@ -111,8 +111,9 @@ class PostgresLoader:
                         sql.SQL(', ').join(map(sql.Identifier, columns))
                     )
 
-                    logger.info(f"Type of raw_conn: {type(raw_conn)}")
-                    logger.info(f"Type of cursor: {type(cursor)}")
+                    logger.debug(f"Type of raw_conn: {type(raw_conn)}")
+                    logger.debug(f"Type of cursor: {type(cursor)}")
+                    
                     sql_string = copy_stmt.as_string(cursor)
 
                     logger.info(f"Loading {len(df)} rows into {schema}.{table_name}")
