@@ -1,0 +1,121 @@
+import pytest
+import json
+import pandas as pd
+from unittest.mock import MagicMock, patch
+from io import BytesIO
+
+from plugins.common.clients.s3_client import S3Service
+
+
+@pytest.fixture
+def bucket_name():
+    """Fixture providing a test S3 bucket name."""
+    return "test-bucket"
+
+@pytest.fixture
+def mock_boto_client():
+    """Fixture providing a mocked boto3 S3 client."""
+    return MagicMock()
+
+@pytest.fixture
+def s3_service(bucket_name, mock_boto_client):
+    """Fixture providing an S3Service instance with mocked dependencies."""
+    return S3Service(bucket_name, mock_boto_client)
+
+
+# ---- JSON tests ----
+
+def test_save_dict_as_json_encodes_correctly(bucket_name, mock_boto_client, s3_service):
+    """
+    Test that save_dict_as_json correctly encodes a dictionary as JSON bytes
+    and calls put_object with the expected parameters.
+    """
+    data = {"key": "value", "second_key": "second_value"}
+    file_key = "folder/data.json"
+
+    s3_service.save_dict_as_json(data, file_key)
+
+    mock_boto_client.put_object.assert_called_once()
+
+    call_kwargs = mock_boto_client.put_object.call_args.kwargs
+
+    assert call_kwargs["Bucket"] == bucket_name
+    assert call_kwargs["Key"] == file_key
+    assert call_kwargs["ContentType"] == "application/json"
+
+    assert isinstance(call_kwargs["Body"], bytes)
+
+    sent_json = json.loads(call_kwargs["Body"].decode("UTF-8"))
+    assert sent_json == data
+
+def test_load_json_decodes_correctly(bucket_name, mock_boto_client, s3_service):
+    """
+    Test that load_json decodes JSON bytes from S3 and returns the correct dictionary.
+    """
+    expected_data = {"key": "value", "second_key": "second_value"}
+    json_bytes = json.dumps(expected_data).encode("UTF-8")
+
+    mock_body = MagicMock()
+    mock_body.read.return_value = json_bytes
+
+    mock_boto_client.get_object.return_value = {"Body": mock_body}
+
+    result = s3_service.load_json("data.json")
+
+    assert result == expected_data
+    mock_boto_client.get_object.assert_called_with(Bucket=bucket_name, Key="data.json")
+
+# ---- Parquet tests ----
+
+def test_save_df_as_parquet_writes_bytes(bucket_name, mock_boto_client, s3_service):
+    """
+    Test that save_df_as_parquet writes a DataFrame as Parquet bytes and
+    calls put_object with the correct content type and data.
+    """
+    df = pd.DataFrame({"col1": [1, 2, 3]})
+    key = "data.parquet"
+
+    s3_service.save_df_as_parquet(df, key)
+
+    mock_boto_client.put_object.assert_called_once()
+    call_kwargs = mock_boto_client.put_object.call_args.kwargs
+
+    assert call_kwargs["Bucket"] == bucket_name
+    assert call_kwargs["Key"] == key
+    assert call_kwargs["ContentType"] == "application/vnd.apache.parquet"
+
+    body_content = call_kwargs["Body"]
+    assert len(body_content) > 0
+    assert body_content.startswith(b"PAR1")
+
+
+@patch("plugins.common.clients.s3_client.pd.read_parquet")
+def test_load_parquet_calls_pandas(mock_read_parquet, mock_boto_client, s3_service):
+    """
+    Test that load_parquet fetches Parquet bytes from S3 and passes them to pandas.read_parquet.
+    """
+    fake_parquet_bytes = b"fake_parquet_data"
+    mock_body = MagicMock()
+    mock_body.read.return_value = fake_parquet_bytes
+    mock_boto_client.get_object.return_value = {"Body": mock_body}
+
+    s3_service.load_parquet("file.parquet")
+
+    assert mock_read_parquet.called
+
+    args, _ = mock_read_parquet.call_args
+    input_buffer = args[0]
+
+    assert isinstance(input_buffer, BytesIO)
+    assert input_buffer.getvalue() == fake_parquet_bytes
+
+
+def test_s3_exception_is_reraised(s3_service, mock_boto_client):
+    """
+    Test that exceptions raised by the boto3 client are propagated by the S3Service.
+    """
+    mock_boto_client.get_object.side_effect = Exception("AWS is down")
+
+    with pytest.raises(Exception, match="AWS is down"):
+        s3_service.load_json("fail.json")
+
