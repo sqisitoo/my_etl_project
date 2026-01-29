@@ -5,7 +5,7 @@ from typing import Literal
 
 class _AWSSettings(BaseSettings):
 
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="AWS_")
+    model_config = SettingsConfigDict(env_file=".env", env_prefix="AWS_", extra="ignore")
 
     access_key_id: str
     secret_access_key: SecretStr
@@ -15,7 +15,7 @@ class _AWSSettings(BaseSettings):
 
 class _DBSettings(BaseSettings):
 
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="DB_")
+    model_config = SettingsConfigDict(env_file=".env", env_prefix="DB_", extra="ignore")
 
     user: str = "postgres"
     password: SecretStr
@@ -45,7 +45,7 @@ class _DBSettings(BaseSettings):
 
 class _APISettings(BaseSettings):
 
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="API_")
+    model_config = SettingsConfigDict(env_file=".env", env_prefix="API_", extra="ignore")
 
     base_url: HttpUrl
     key: SecretStr
