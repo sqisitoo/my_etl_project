@@ -1,9 +1,8 @@
-import pytest
 import pandas as pd
-import numpy as np
-from datetime import datetime
+import pytest
 
 from plugins.pipelines.air_pollution.transform import transform_air_pollution_raw_data
+
 
 @pytest.fixture
 def valid_raw_data():
@@ -20,8 +19,8 @@ def valid_raw_data():
                     "so2": 4.47,
                     "pm2_5": 1.43,
                     "pm10": 2.43,
-                    "nh3": 0.54
-                }
+                    "nh3": 0.54,
+                },
             },
             {
                 "main": {"aqi": 5},
@@ -34,32 +33,31 @@ def valid_raw_data():
                     "so2": 4.14,
                     "pm2_5": 1.56,
                     "pm10": 2.76,
-                    "nh3": 0.34
-                }
-            }
+                    "nh3": 0.34,
+                },
+            },
         ]
     }
+
 
 @pytest.fixture
 def malformed_schema_data():
     return {
-        'list': [
+        "list": [
             {
-                'main': {'aqi': 2},
-                'dt': 1761343200,
-                'components': {
-                    'co': 112.17,
-                    'no': 0,
-                    'no2': 4.67,
-                    'o3': 70.52
-                }
+                "main": {"aqi": 2},
+                "dt": 1761343200,
+                "components": {"co": 112.17, "no": 0, "no2": 4.67, "o3": 70.52},
             }
         ]
-}
+    }
 
 
 def test_transform_success_structure(valid_raw_data):
-    """Tests that the function returns a DataFrame with correct structure: 2 rows, 14 columns, including 'city' column set to the input city."""
+    """
+    Tests that the function returns a DataFrame with correct structure:
+    2 rows, 14 columns, including 'city' column set to the input city.
+    """
     city_name = "Berlin"
     df = transform_air_pollution_raw_data(valid_raw_data, city_name)
     assert isinstance(df, pd.DataFrame)
@@ -68,8 +66,12 @@ def test_transform_success_structure(valid_raw_data):
     assert "city" in df.columns
     assert all(df["city"] == city_name)
 
+
 def test_transform_value_correctness(valid_raw_data):
-    """Tests that all transformed values (AQI, pollutants, timestamps, derived fields) match the expected output for the given input data."""
+    """
+    Tests that all transformed values (AQI, pollutants, timestamps, derived fields)
+    match the expected output for the given input data.
+    """
     city_name = "Berlin"
     df = transform_air_pollution_raw_data(valid_raw_data, city_name)
     # First row
@@ -103,11 +105,13 @@ def test_transform_value_correctness(valid_raw_data):
     assert df.iloc[1]["nh3"] == 0.34
     assert df.iloc[1]["co"] == 1.25
 
+
 def test_transform_empty_list():
     """Tests that ValueError is raised when the input data has an empty 'list'."""
     empty_data = {"list": []}
     with pytest.raises(ValueError):
         transform_air_pollution_raw_data(empty_data, "Berlin")
+
 
 def test_transform_missing_list_key():
     """Tests that ValueError is raised when the input data is missing the 'list' key."""
@@ -115,14 +119,16 @@ def test_transform_missing_list_key():
     with pytest.raises(ValueError):
         transform_air_pollution_raw_data(no_list_data, "Berlin")
 
+
 def test_transform_malformed_schema(malformed_schema_data):
     """Tests that KeyError is raised when required columns are missing from the input data."""
     with pytest.raises(KeyError):
         transform_air_pollution_raw_data(malformed_schema_data, "Berlin")
 
+
 def test_transform_aqi_categorical_integrity(valid_raw_data):
     """Tests that 'aqi_interpretation' and 'day_of_week' columns are properly set as categorical types."""
     df = transform_air_pollution_raw_data(valid_raw_data, "Berlin")
-    
+
     assert isinstance(df["aqi_interpretation"].dtype, pd.CategoricalDtype)
     assert isinstance(df["day_of_week"].dtype, pd.CategoricalDtype)

@@ -1,18 +1,31 @@
 import logging
 from datetime import datetime
+
 from airflow.exceptions import AirflowSkipException
+
 from plugins.common.clients.open_weather_client import OpenWeatherApiClient
 from plugins.common.clients.s3_client import S3Service
 
 logger = logging.getLogger(__name__)
 
-def extract_and_store(*, city: str, open_weather_client: OpenWeatherApiClient, s3_service: S3Service, lat: float, lon: float, start_ts: int|float, end_ts: int|float, logical_date: datetime) -> str:
+
+def extract_and_store(
+    *,
+    city: str,
+    open_weather_client: OpenWeatherApiClient,
+    s3_service: S3Service,
+    lat: float,
+    lon: float,
+    start_ts: int | float,
+    end_ts: int | float,
+    logical_date: datetime,
+) -> str:
     """
     Extracts historical air pollution data for a specified city and stores it in S3.
 
     Args:
         city (str): The name of the city for which to extract air pollution data.
-        open_weather_client (OpenWeatherApiClient): An instance of OpenWeatherApiClient to fetch data from the OpenWeather API.
+        open_weather_client (OpenWeatherApiClient): An instance of OpenWeatherApiClient.
         s3_service (S3Service): An instance of S3Service to handle saving data to S3.
         lat (float): The latitude of the city.
         lon (float): The longitude of the city.
@@ -28,10 +41,12 @@ def extract_and_store(*, city: str, open_weather_client: OpenWeatherApiClient, s
     """
 
     # Fetch historical air pollution data from the OpenWeather API
-    data = open_weather_client.get_historical_airpollution_data(city=city, lat=lat, lon=lon, start_ts=start_ts, end_ts=end_ts)
+    data = open_weather_client.get_historical_airpollution_data(
+        city=city, lat=lat, lon=lon, start_ts=start_ts, end_ts=end_ts
+    )
 
     # Validate that the API response contains data
-    if not data.get('list'):
+    if not data.get("list"):
         logger.warning(f"No data found for lat:{lat}, lon:{lon}")
         # Skip the task if the API returns an empty result
         raise AirflowSkipException(f"API retutned empty list for lat:{lat}, lon:{lon}")
@@ -47,6 +62,6 @@ def extract_and_store(*, city: str, open_weather_client: OpenWeatherApiClient, s
 
     # Saving
     s3_service.save_dict_as_json(data, s3_key)
-    
+
     # Return the S3 path for use in subsequent pipeline stages
     return s3_key

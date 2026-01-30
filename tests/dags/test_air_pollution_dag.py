@@ -1,9 +1,11 @@
+import logging
+
 import pytest
 from airflow.models import DagBag
-import logging
 
 logger = logging.getLogger(__name__)
 DAGS_FOLDER = "dags"
+
 
 @pytest.fixture(scope="module")
 def dag_bag():
@@ -11,6 +13,7 @@ def dag_bag():
     Fixture to provide a DagBag instance for loading and validating DAGs.
     """
     return DagBag(dag_folder=DAGS_FOLDER)
+
 
 @pytest.fixture(scope="module")
 def air_pollution_dag(dag_bag):
@@ -23,14 +26,16 @@ def air_pollution_dag(dag_bag):
 
     if dag is None:
         raise ValueError(f"DAG with id '{dag_id}' not found in {DAGS_FOLDER}")
-    
+
     return dag
+
 
 def test_air_pollution_dag_loading_no_import_errors(dag_bag):
     """
     Test that there are no import errors when loading DAGs from the dags folder.
     """
     assert len(dag_bag.import_errors) == 0
+
 
 def test_air_pollution_dag_structure_and_settings(air_pollution_dag):
     """
@@ -40,24 +45,27 @@ def test_air_pollution_dag_structure_and_settings(air_pollution_dag):
     assert air_pollution_dag.catchup is False
     assert air_pollution_dag.default_args.get("retries") == 2
 
+
 def test_air_pollution_dag_tasks_exist(air_pollution_dag):
     """
     Test that all expected tasks are present in the air_pollution_dag.
     """
     tasks = air_pollution_dag.task_ids
     expected_tasks = {
-        "init_schema", 
-        "get_cities_config", 
-        "extract_data", 
-        "transform_data", 
-        "load_data_to_rds"
+        "init_schema",
+        "get_cities_config",
+        "extract_data",
+        "transform_data",
+        "load_data_to_rds",
     }
     assert set(tasks) == expected_tasks
+
 
 def test_air_pollution_dag_dependecies(air_pollution_dag):
     """
     Test that the dependencies between tasks in the air_pollution_dag are set up correctly.
-    The expected order is: init_schema -> get_cities_config -> extract_data -> transform_data -> load_data_to_rds
+    The expected order is:
+    init_schema -> get_cities_config -> extract_data -> transform_data -> load_data_to_rds
     """
     init_schema = air_pollution_dag.get_task("init_schema")
     get_cities = air_pollution_dag.get_task("get_cities_config")
@@ -71,5 +79,3 @@ def test_air_pollution_dag_dependecies(air_pollution_dag):
     assert get_cities in extract_task.upstream_list
     assert extract_task in transform_task.upstream_list
     assert transform_task in load_task.upstream_list
-
-    

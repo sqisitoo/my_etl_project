@@ -1,17 +1,18 @@
-import requests
-from urllib3.util.retry import Retry
-from requests.adapters import HTTPAdapter
 import logging
-from pydantic import SecretStr
 from typing import Any
 
+import requests
+from pydantic import SecretStr
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 logger = logging.getLogger(__name__)
+
 
 class OpenWeatherApiClient:
     """
     HTTP client for the OpenWeatherMap API.
-    
+
     Features:
     - Automatic retry logic for resilient API calls (5xx errors)
     - Secure API key management using Pydantic SecretStr
@@ -28,7 +29,7 @@ class OpenWeatherApiClient:
             api_key: OpenWeather API key wrapped in SecretStr for secure handling
         """
         # Store base URL without trailing slash for consistent path construction
-        self.base_url = base_url.rstrip('/')
+        self.base_url = base_url.rstrip("/")
         self.api_key = api_key
 
         # Create a persistent session for connection pooling
@@ -41,7 +42,7 @@ class OpenWeatherApiClient:
             total=5,
             backoff_factor=1,
             allowed_methods=["GET"],
-            status_forcelist=[500, 502, 503, 504]  # Retry on server errors only
+            status_forcelist=[500, 502, 503, 504],  # Retry on server errors only
         )
 
         # Mount retry adapter to both HTTP and HTTPS
@@ -50,19 +51,12 @@ class OpenWeatherApiClient:
         self.session.mount("https://", adapter=adapter)
 
         # Set default query parameter (API key) for all requests
-        self.session.params = {
-            "appid": api_key.get_secret_value()
-        }
+        self.session.params = {"appid": api_key.get_secret_value()}
 
         logger.info("OpenWeatherApiClient initialized with session pooling enabled")
 
     def get_historical_airpollution_data(
-        self, 
-        city: str, 
-        lat: float, 
-        lon: float, 
-        start_ts: int | float, 
-        end_ts: int | float
+        self, city: str, lat: float, lon: float, start_ts: int | float, end_ts: int | float
     ) -> dict[str, Any]:
         """
         Retrieve historical air pollution data for a specific location and time range.
@@ -82,12 +76,7 @@ class OpenWeatherApiClient:
             requests.RequestException: For network-related errors
         """
         # Build query parameters for the API request
-        params = {
-            "lat": lat,
-            "lon": lon,
-            "start": int(start_ts),
-            "end": int(end_ts)
-        }
+        params = {"lat": lat, "lon": lon, "start": int(start_ts), "end": int(end_ts)}
 
         try:
             logger.info(
@@ -112,15 +101,15 @@ class OpenWeatherApiClient:
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
             raise
-    
+
     def __enter__(self):
         """Support using the client as a context manager."""
         return self
-    
+
     def __exit__(self, exc_type, exc_value, exc_tb):
         """
         Clean up resources when exiting the context manager.
-        
+
         Args:
             exc_type: Exception type if an error occurred, None otherwise
             exc_value: Exception instance if an error occurred, None otherwise

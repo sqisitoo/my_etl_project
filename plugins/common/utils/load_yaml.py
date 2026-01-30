@@ -1,6 +1,8 @@
-import yaml
-from typing import Any
 from pathlib import Path
+from typing import Any
+
+import yaml
+
 
 def load_yaml(path_to_yaml: Path) -> Any:
     """
@@ -21,7 +23,7 @@ def load_yaml(path_to_yaml: Path) -> Any:
     """
     try:
         # Open and safely parse the YAML file
-        with open(path_to_yaml, "r") as file:
+        with open(path_to_yaml) as file:
             data = yaml.safe_load(file)
         return data
     except FileNotFoundError as e:

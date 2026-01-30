@@ -1,7 +1,10 @@
-import pytest
-import pandas as pd
 from unittest.mock import MagicMock, patch
+
+import pandas as pd
+import pytest
+
 from plugins.common.clients.postgres_loader import PostgresLoader
+
 
 @pytest.fixture
 def mock_engine_chain():
@@ -45,7 +48,7 @@ def test_load_df_executes_cleanup_query(mock_sql_module, mock_engine_chain):
     mock_engine, mock_sa_conn, _ = mock_engine_chain
     loader = PostgresLoader(mock_engine)
     cleanup_sql = "DELETE FROM my_table WHERE date < '2026-01-01'"
-    df = pd.DataFrame({'col1': [1, 2, 3]})
+    df = pd.DataFrame({"col1": [1, 2, 3]})
 
     loader.load_df(df, "my_table", cleanup_query=cleanup_sql)
 
@@ -63,7 +66,7 @@ def test_load_df_calls_copy_expert(mock_sql_module, mock_engine_chain):
     mock_engine, _, mock_cursor = mock_engine_chain
     loader = PostgresLoader(mock_engine)
     expected_sql = "COPY pulic.my_table (...) FROM STDIN"
-    df = pd.DataFrame({'col1': [1, 3], 'col2': [2, 4]})
+    df = pd.DataFrame({"col1": [1, 3], "col2": [2, 4]})
 
     # Mock the SQL statement returned by the sql module
     mock_statement = mock_sql_module.SQL.return_value.format.return_value
@@ -78,7 +81,7 @@ def test_load_df_calls_copy_expert(mock_sql_module, mock_engine_chain):
     csv_buffer = call_args[1]
 
     assert expected_sql == actual_sql
-    
+
     content = csv_buffer.getvalue()
     # The CSV buffer should contain the data but not the header
     assert "1,2" in content
@@ -98,11 +101,3 @@ def test_load_df_propagetes_exception(mock_sql_module, mock_engine_chain):
 
     with pytest.raises(RuntimeError):
         loader.load_df(pd.DataFrame({"col1": [1]}), "my_table")
-
-
-
-
-
-
-
-    

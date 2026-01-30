@@ -1,9 +1,10 @@
-import pytest
-from unittest.mock import MagicMock
 from datetime import datetime, timezone
+from unittest.mock import MagicMock
+
+import pytest
+from airflow.exceptions import AirflowSkipException
 
 from plugins.pipelines.air_pollution.extract import extract_and_store
-from airflow.exceptions import AirflowSkipException
 
 
 @pytest.fixture
@@ -44,7 +45,7 @@ def test_extract_and_store_success_path(mock_clients):
         lon=2.02,
         start_ts=120000,
         end_ts=130000,
-        logical_date=logical_date
+        logical_date=logical_date,
     )
 
     # Assert the returned key matches the expected key
@@ -56,7 +57,8 @@ def test_extract_and_store_success_path(mock_clients):
 
 def test_extract_raises_skip_exception_on_empty_data(mock_clients):
     """
-    Test that extract_and_store raises AirflowSkipException and does not call S3 when the returned data is empty.
+    Test that extract_and_store raises AirflowSkipException
+    and does not call S3 when the returned data is empty.
     """
     mock_weather, mock_s3 = mock_clients
 
@@ -66,7 +68,7 @@ def test_extract_raises_skip_exception_on_empty_data(mock_clients):
     logical_date = datetime(2025, 1, 1, tzinfo=timezone.utc)
 
     # The function should raise AirflowSkipException when data is empty
-    with pytest.raises(AirflowSkipException) as excinfo:
+    with pytest.raises(AirflowSkipException):
         extract_and_store(
             city="Berlin",
             open_weather_client=mock_weather,
@@ -75,13 +77,8 @@ def test_extract_raises_skip_exception_on_empty_data(mock_clients):
             lon=2.02,
             start_ts=120000,
             end_ts=130000,
-            logical_date=logical_date
+            logical_date=logical_date,
         )
 
     # Assert that the S3 service was not called
     mock_s3.save_dict_as_json.assert_not_called()
-
-
-
-
-

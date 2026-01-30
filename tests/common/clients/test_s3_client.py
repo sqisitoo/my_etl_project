@@ -1,8 +1,9 @@
-import pytest
 import json
-import pandas as pd
-from unittest.mock import MagicMock, patch
 from io import BytesIO
+from unittest.mock import MagicMock, patch
+
+import pandas as pd
+import pytest
 
 from plugins.common.clients.s3_client import S3Service
 
@@ -12,10 +13,12 @@ def bucket_name():
     """Fixture providing a test S3 bucket name."""
     return "test-bucket"
 
+
 @pytest.fixture
 def mock_boto_client():
     """Fixture providing a mocked boto3 S3 client."""
     return MagicMock()
+
 
 @pytest.fixture
 def s3_service(bucket_name, mock_boto_client):
@@ -24,6 +27,7 @@ def s3_service(bucket_name, mock_boto_client):
 
 
 # ---- JSON tests ----
+
 
 def test_save_dict_as_json_encodes_correctly(bucket_name, mock_boto_client, s3_service):
     """
@@ -48,6 +52,7 @@ def test_save_dict_as_json_encodes_correctly(bucket_name, mock_boto_client, s3_s
     sent_json = json.loads(call_kwargs["Body"].decode("UTF-8"))
     assert sent_json == data
 
+
 def test_load_json_decodes_correctly(bucket_name, mock_boto_client, s3_service):
     """
     Test that load_json decodes JSON bytes from S3 and returns the correct dictionary.
@@ -65,7 +70,9 @@ def test_load_json_decodes_correctly(bucket_name, mock_boto_client, s3_service):
     assert result == expected_data
     mock_boto_client.get_object.assert_called_with(Bucket=bucket_name, Key="data.json")
 
+
 # ---- Parquet tests ----
+
 
 def test_save_df_as_parquet_writes_bytes(bucket_name, mock_boto_client, s3_service):
     """
@@ -118,4 +125,3 @@ def test_s3_exception_is_reraised(s3_service, mock_boto_client):
 
     with pytest.raises(Exception, match="AWS is down"):
         s3_service.load_json("fail.json")
-

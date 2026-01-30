@@ -1,12 +1,11 @@
 import pandas as pd
+
 from plugins.common.clients.postgres_loader import PostgresLoader
 
+
 def load_air_pollution_data(
-        postgres_loader: PostgresLoader,
-        df: pd.DataFrame, 
-        city: str, 
-        table_name: str = "air_pollution"
-        ):
+    postgres_loader: PostgresLoader, df: pd.DataFrame, city: str, table_name: str = "air_pollution"
+):
     """
     Loads air pollution data into a PostgreSQL database table.
 
@@ -39,7 +38,7 @@ def load_air_pollution_data(
     params = {
         "city": city,
         "min_datetime": df["measured_at"].min(),  # Minimum datetime in the DataFrame
-        "max_datetime": df["measured_at"].max()   # Maximum datetime in the DataFrame
+        "max_datetime": df["measured_at"].max(),  # Maximum datetime in the DataFrame
     }
 
     # Load the DataFrame into the database table, with cleanup using the delete query

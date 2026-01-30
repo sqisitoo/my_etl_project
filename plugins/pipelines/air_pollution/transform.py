@@ -1,11 +1,10 @@
-from datetime import datetime
-import json
-import pandas as pd
-import numpy as np
-from typing import Any
 import logging
+from typing import Any
+
+import pandas as pd
 
 logger = logging.getLogger(__name__)
+
 
 def transform_air_pollution_raw_data(raw_data: dict[str, Any], city: str) -> pd.DataFrame:
     """
@@ -33,21 +32,21 @@ def transform_air_pollution_raw_data(raw_data: dict[str, Any], city: str) -> pd.
 
     # 2. Normalization (Flattening)
     df = pd.json_normalize(raw_data["list"])
-    
+
     # 3. Column Selection & Renaming
     rename_map = {
-        'dt': 'date',
-        'main.aqi': 'aqi',
-        'components.no': 'no',
-        'components.no2': 'no2',
-        'components.o3': 'o3',
-        'components.so2': 'so2',
-        'components.pm2_5': 'pm2_5',
-        'components.pm10': 'pm10',
-        'components.nh3': 'nh3',
-        'components.co': 'co'
+        "dt": "date",
+        "main.aqi": "aqi",
+        "components.no": "no",
+        "components.no2": "no2",
+        "components.o3": "o3",
+        "components.so2": "so2",
+        "components.pm2_5": "pm2_5",
+        "components.pm10": "pm10",
+        "components.nh3": "nh3",
+        "components.co": "co",
     }
-    
+
     # Schema Validation
     missing_columns = set(rename_map) - set(df.columns)
     if missing_columns:
@@ -59,17 +58,17 @@ def transform_air_pollution_raw_data(raw_data: dict[str, Any], city: str) -> pd.
 
     # 4. Type Casting & Feature Engineering (Vectorized operations)
     # Convert Unix timestamp to datetime object
-    df["measured_at"] = pd.to_datetime(df["date"], unit="s").dt.tz_localize('UTC')
-    df = df.drop(columns=['date'])
+    df["measured_at"] = pd.to_datetime(df["date"], unit="s").dt.tz_localize("UTC")
+    df = df.drop(columns=["date"])
 
     # Map AQI numeric values to human-readable categories
-    aqi_categories = {1: 'good', 2: 'fair', 3: 'moderate', 4: 'poor', 5: 'very poor'}
+    aqi_categories = {1: "good", 2: "fair", 3: "moderate", 4: "poor", 5: "very poor"}
     df["aqi_interpretation"] = df["aqi"].map(aqi_categories).astype("category")
 
     # Extract temporal features using .dt accessor
     df["day_of_week"] = df["measured_at"].dt.day_name().astype("category")
     df["time_of_day"] = df["measured_at"].dt.strftime("%H:%M")
-    
+
     # Add partition column
     df["city"] = city
 
