@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 import requests
 import requests_mock
@@ -108,7 +110,7 @@ def test_context_manager_closes_session(base_url, api_key):
     from unittest.mock import MagicMock
 
     client = OpenWeatherApiClient(base_url, api_key)
-    client.session.close = MagicMock()
+    client.session = MagicMock()
 
     with client:
         pass
@@ -118,7 +120,7 @@ def test_context_manager_closes_session(base_url, api_key):
 
 def test_timestamp_conversion_to_int(base_url, api_key, mock_requests):
     """Test that float timestamps are properly converted to integers."""
-    mock_response = {"list": []}
+    mock_response: dict[str, Any] = {"list": []}
     mock_requests.get(base_url, json=mock_response, status_code=200)
 
     client = OpenWeatherApiClient(base_url, api_key)

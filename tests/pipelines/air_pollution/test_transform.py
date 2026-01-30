@@ -1,3 +1,5 @@
+from typing import Any
+
 import pandas as pd
 import pytest
 
@@ -108,14 +110,14 @@ def test_transform_value_correctness(valid_raw_data):
 
 def test_transform_empty_list():
     """Tests that ValueError is raised when the input data has an empty 'list'."""
-    empty_data = {"list": []}
+    empty_data: dict[str, Any] = {"list": []}
     with pytest.raises(ValueError):
         transform_air_pollution_raw_data(empty_data, "Berlin")
 
 
 def test_transform_missing_list_key():
     """Tests that ValueError is raised when the input data is missing the 'list' key."""
-    no_list_data = {"foo": []}
+    no_list_data: dict[str, Any] = {"foo": []}
     with pytest.raises(ValueError):
         transform_air_pollution_raw_data(no_list_data, "Berlin")
 

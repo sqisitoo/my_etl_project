@@ -1,7 +1,7 @@
 import io
 import json
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import pandas as pd
 
@@ -21,7 +21,7 @@ class S3Service:
             response = self._client.get_object(Bucket=self._bucket, Key=key)
             json_string = response["Body"].read().decode("UTF-8")
 
-            return json.loads(json_string)
+            return cast(dict[str, Any], json.loads(json_string))
         except Exception as err:
             logger.error(f"Failed to load json from s3://{self._bucket}/{key}. Error: {err}")
             raise

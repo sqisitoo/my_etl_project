@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, cast
 
 import requests
 from pydantic import SecretStr
@@ -90,7 +90,7 @@ class OpenWeatherApiClient:
             response = self.session.get(self.base_url, params=params, timeout=10)
             response.raise_for_status()  # Raise exception for non-2xx status codes
 
-            return response.json()
+            return cast(dict[str, Any], response.json())
 
         except requests.HTTPError as e:
             logger.error(f"HTTP error from OpenWeatherMap API: {e.response.status_code} - {e}")
