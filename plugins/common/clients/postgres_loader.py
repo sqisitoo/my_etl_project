@@ -53,7 +53,7 @@ class PostgresLoader:
         self,
         df: pd.DataFrame,
         table_name: str,
-        schema: str | None = "public",
+        schema: str = "public",
         *,
         cleanup_query: str | None = None,
         cleanup_params: dict[str, Any] | None = None,
