@@ -27,7 +27,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install -r docker/airflow/requirements.txt
-          pip install -r docker/airflow/requierements_dev.txt
+          pip install -r docker/airflow/requirements_dev.txt
       
       - name: Run Linter (Ruff + MyPy)
         run: make lint
