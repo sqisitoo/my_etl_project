@@ -1,0 +1,51 @@
+name: CI Pipeline
+
+# TRIGGERS
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+env:
+  AIRFLOW_VERSION: "3.1.6"
+  PYTHON_VERSION: "3.10"
+
+jobs:
+  integration:
+    name: Code Quality & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+      
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          CONSTRAINT_URL="https://raw.githubusercontent.com/apache/airflow/constraints-${{env.AIRFLOW_VERSION}}/constraints-${{env.PYTHON_VERSION}}.txt"
+
+          echo "Installing with constraints from: $CONSTRAINT_URL"
+          
+          pip install -r docker/airflow/requirements.txt --constraint "$CONSTRAINT_URL"
+          pip install -r docker/airflow/requirements_dev.txt
+      
+      - name: Prepare environment for tests
+        run: |
+          cp .env.template .env
+      - name: Run Linter (Ruff + MyPy)
+        run: make lint
+      
+      - name: Run Tests (Pytest)
+        run: make test
+      
+      - name: Build Docker Image
+        run: make build
+          

@@ -1,0 +1,8 @@
+ruff
+mypy
+pytest
+types-requests
+types-PyYAML
+make
+types-psycopg2
+requests_mock
