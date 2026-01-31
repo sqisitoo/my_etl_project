@@ -37,6 +37,9 @@ jobs:
           pip install -r docker/airflow/requirements.txt --constraint "$CONSTRAINT_URL"
           pip install -r docker/airflow/requirements_dev.txt
       
+      - name: Prepare environment for tests
+        run: |
+          cp .env.template .env
       - name: Run Linter (Ruff + MyPy)
         run: make lint
       
