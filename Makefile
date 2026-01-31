@@ -40,4 +40,3 @@ install_deps:
 
 	@python -m pip install --prefer-binary -r docker/airflow/requirements.txt --constraint "$$TMP_CONSTRAINTS"
 	@python -m pip install --prefer-binary -r docker/airflow/requirements_dev.txt
-	
