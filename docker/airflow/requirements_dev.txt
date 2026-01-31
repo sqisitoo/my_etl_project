@@ -4,3 +4,4 @@ pytest
 types-requests
 types-PyYAML
 make
+types-psycopg2
