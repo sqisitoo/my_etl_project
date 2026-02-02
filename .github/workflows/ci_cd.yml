@@ -1,0 +1,105 @@
+name: CI/CD Pipeline
+
+# TRIGGERS
+# Define when this pipeline runs.
+on:
+  push:
+    branches: ["main"]      # Run on pushes to main (CI + Delivery)
+  pull_request:
+    branches: ["main"]      # Run on PRs to main (CI only)
+
+# GLOBAL ENVIRONMENT VARIABLES
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  # Ensure these versions match local development setup
+  PYTHON_VERSION: "3.10"
+  AIRFLOW_VERSION: "3.1.6"
+
+jobs:
+  # JOB 1: INTEGRATION (CI)
+  # Focus: Code quality, Static Analysis, Unit Testing.
+  # Does NOT build the Docker image to save resources.
+  integration:
+    name: Code Quality & Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      # Setup Python environment on the runner directly
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip" # Caches pip dependencies automatically
+      
+      - name: Install Dependencies
+        run: make install_deps
+      
+      # Create a dummy .env file if your tests rely on loading env vars
+      - name: Prepare Test Environment
+        run: |
+          cp .env.template .env
+
+      - name: Run Linters (Ruff, MyPy)
+        run: make lint
+      
+      - name: Run Unit Tests (Pytest)
+        run: make test
+
+  # JOB 2: DELIVERY (CD)
+  # Focus: Build Artifact (Docker Image) and Push to Registry.
+  # Condition: Runs only if 'integration' job passes.
+  build-and-push:
+    name: Build & Push Docker Image
+    needs: integration
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # Required for pushing to GHCR
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Buildx is required for advanced caching features
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      # Login is required to push images
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      # Automatically generate tags: 'latest' (for main) and 'sha-xyz' (for immutable versioning)
+      - name: Extract Metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,prefix=sha-
+        
+      - name: Build and Push Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/airflow/Dockerfile
+          # Push only if it's NOT a Pull Request
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Pass build arguments to ensure image matches config
+          build-args: |
+            PYTHON_VERSION=${{ env.PYTHON_VERSION }}
+            AIRFLOW_VERSION=${{ env.AIRFLOW_VERSION }}
+          # GitHub Actions Cache optimization
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      

@@ -1,0 +1,41 @@
+# Version control
+.git
+.gitignore
+
+# IDE and env
+.vscode
+.idea
+.env
+.env.template
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+pytest.ini
+pyproject.toml
+
+
+# Airflow
+logs/
+
+# Docker
+.dockerignore
+Dockerfile*
+docker-compose*.yml
+
+# Documentation
+README.md
+*.md
+
+# CI/CD
+.github/
+
+# Research/
+research/
+
+# Makefile
+Makefile
