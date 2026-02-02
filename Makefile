@@ -17,7 +17,7 @@ test:
 check: lint test
 
 build:
-	docker build -f docker/airflow/Dockerfile -t my-pet-project:latest docker/airflow
+	docker build -f docker/airflow/Dockerfile -t my-pet-project:latest .
 
 install_deps:
 	@set -euo pipefail
