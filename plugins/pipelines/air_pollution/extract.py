@@ -1,5 +1,6 @@
 import logging
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 
 from airflow.exceptions import AirflowFailException, AirflowSkipException
@@ -11,18 +12,28 @@ from plugins.pipelines.air_pollution.schemas import AirPollutionRecord
 
 logger = logging.getLogger(__name__)
 
+
+@dataclass
+class ValidationResult:
+    """Validation output including valid data, quarantine payload, and DQ status."""
+
+    valid_records: list[dict[str, Any]]
+    quarantine_records: list[dict[str, Any]]
+    ts_validation: str
+    is_critical_failure: bool
+    failure_reason: str
+
 def validate_data_batch(
-        raw_records: list[dict[str, Any]],
-        threshold_percent: float,
-        min_failed_items: int
-) -> list[dict[str, Any]]:
+    raw_records: list[dict[str, Any]],
+    threshold_percent: float,
+    min_failed_items: int,
+) -> ValidationResult:
     """
     Validate a batch of air pollution records against the data schema.
 
-    Performs Pydantic validation on raw API records and implements a quality gate
-    to prevent processing critically flawed datasets. The function will fail the task
-    if validation failures exceed both the percentage threshold AND absolute count,
-    or if all records fail validation.
+    Performs Pydantic validation on raw API records and evaluates data quality thresholds.
+    The function returns both valid records and quarantine payloads so downstream logic can
+    persist the appropriate artifacts and decide whether to stop the pipeline.
 
     Args:
         raw_records (list[dict[str, Any]]): Raw air pollution records from the API.
@@ -30,21 +41,21 @@ def validate_data_batch(
         min_failed_items (int): Minimum number of failed items to trigger failure.
 
     Returns:
-        list[dict[str, Any]]: List of validated records that passed schema validation.
-
-    Raises:
-        AirflowFailException: If validation failures exceed quality thresholds or all records fail.
+        ValidationResult: Valid records, quarantine records, and DQ evaluation results.
     """
     logger.debug(f"Starting validation for batch of {len(raw_records)} records")
 
     valid_records = []
+    quarantine_records = []
+    current_timestamp_isoformat = datetime.now(timezone.utc).isoformat()
+
     failed_count = 0
     total_count = len(raw_records)
 
     # Handle empty input batch
     if total_count == 0:
         logger.warning("Received empty batch for validation")
-        return []
+        return ValidationResult([], [], current_timestamp_isoformat, False, "")
 
     # Validate each record individually
     for record in raw_records:
@@ -53,7 +64,14 @@ def validate_data_batch(
             valid_records.append(validated_model.model_dump(mode="json"))
         except ValidationError as err:
             failed_count += 1
-            logger.error(f"Validation failed for record: {err}")
+            logger.debug(f"Validation failed for record."
+                         f"Errors: {err.errors(include_url=False)}"
+                         f"Invalid record payload: {record}")
+            quarantine_records.append({
+                "error": err.errors(include_url=False),
+                "raw": record,
+                "ts": current_timestamp_isoformat
+            })
 
     # Calculate validation metrics
     failure_rate = (failed_count / total_count) * 100
@@ -70,17 +88,22 @@ def validate_data_batch(
     # Edge case: Total failure indicates critical data quality issue
     is_total_failure = (len(valid_records) == 0)
 
-    # Fail the task if quality thresholds are breached
-    if (is_failure_rate_high and is_absolute_count_high) or is_total_failure:
-        error_msg = (
-            f"Data Quality Critical Failure: {failed_count}/{total_count} records failed "
-            f"({failure_rate:.2f}%). Threshold={threshold_percent}%, MinItems={min_failed_items}."
-        )
-        logger.critical(error_msg)
-        raise AirflowFailException(error_msg)
+    is_critical = (is_failure_rate_high and is_absolute_count_high) or is_total_failure
 
-    logger.debug(f"Validation completed successfully with {len(valid_records)} valid records")
-    return valid_records
+    reason = ""
+    if is_critical:
+        reason = (f"Threshold exceeded: {failure_rate:.2f}% failures "
+                  f"(Threshold: {threshold_percent}%, MinItems: {min_failed_items})")
+
+    return ValidationResult(
+        valid_records=valid_records,
+        quarantine_records=quarantine_records,
+        ts_validation=current_timestamp_isoformat,
+        is_critical_failure=is_critical,
+        failure_reason=reason
+    )
+
+
 
 
 def extract_and_store(
@@ -94,15 +117,15 @@ def extract_and_store(
     end_ts: int | float,
     logical_date: datetime,
     dq_threshold_percent: float = 20.0,
-    dq_min_failed_items: int = 5
+    dq_min_failed_items: int = 5,
 ) -> str:
     """
     Extract historical air pollution data from OpenWeather API and store in S3 bronze layer.
 
     This function orchestrates the extraction phase of the ETL pipeline by fetching raw
     air pollution data for a specific city and time range, validating the data quality,
-    and persisting it to S3 in a partitioned structure. The function implements data
-    quality gates and will skip the task if no valid data is available.
+    and persisting it to S3 in a partitioned structure. When validation finds invalid
+    records, they are written to a quarantine location for later inspection.
 
     Dependency Injection: Data quality parameters are configurable to support flexible
     quality thresholds across different deployment environments and use cases.
@@ -143,43 +166,63 @@ def extract_and_store(
     # Step 2: Verify API response contains data records
     if not raw_list:
         logger.warning(f"API returned empty result for lat:{lat}, lon:{lon}")
-        raise AirflowSkipException(f"API retutned empty list for lat:{lat}, lon:{lon}")
+        raise AirflowSkipException(f"API returned empty list for lat:{lat}, lon:{lon}")
 
     logger.info(f"Retrieved {len(raw_list)} raw records from API")
 
     # Step 3: Validate data quality and apply quality gates with injected DQ parameters
-    valid_data_list = validate_data_batch(raw_list, dq_threshold_percent, dq_min_failed_items)
+    validation_result = validate_data_batch(raw_list, dq_threshold_percent, dq_min_failed_items)
 
-    # Handle edge case where all records fail validation
-    if not valid_data_list:
-        logger.warning("No valid records after validation - skipping task")
-        raise AirflowSkipException("No valid records to save.")
+    logger.info(
+        "Validation outcome: valid=%s, quarantined=%s, critical=%s",
+        len(validation_result.valid_records),
+        len(validation_result.quarantine_records),
+        validation_result.is_critical_failure,
+    )
 
-    # Step 4: Construct final payload with coordinates and validated records
-    final_payload = {
-        "coord": data.get("coord"),
-        "list": valid_data_list
-    }
-
-    logger.debug(f"Final payload contains {len(valid_data_list)} validated records")
-
-    # Step 5: Generate S3 key using partitioning strategy (city/year/month/day)
-    # This partitioning scheme enables efficient querying and data organization
-    s3_key = (
-        f"bronze/air_pollution/"
+    # Step 4: Build a partitioned base path for both valid and quarantine payloads
+    base_path = (
         f"city={city}/"
         f"year={logical_date.year}/"
         f"month={logical_date.month:02d}/"
         f"day={logical_date.day:02d}/"
         f"{int(logical_date.timestamp())}.json"
     )
+    s3_key_quarantine = f"bronze/air_pollution_quarantine/{base_path}"
 
-    logger.info(f"Generated S3 key: {s3_key}")
+    if validation_result.quarantine_records:
+        logger.info("Writing %s quarantined records", len(validation_result.quarantine_records))
+        quarantine_payload = {
+            "metadata": {
+                "status": "critical_failure" if validation_result.is_critical_failure
+                                             else "partial_faiilure",
+                "failure_reason": validation_result.failure_reason,
+                "processed_at": validation_result.ts_validation
+            },
+            "records": validation_result.quarantine_records
+        }
 
-    # Step 6: Persist validated data to S3 bronze layer
-    s3_service.save_dict_as_json(final_payload, s3_key)
+        s3_service.save_dict_as_json(quarantine_payload, s3_key_quarantine)
 
-    logger.info(f"Successfully saved data to S3: {s3_key}")
+    else:
+        logger.info("No quarantined records; removing prior quarantine artifact if it exists")
+        s3_service.delete_object(s3_key_quarantine)
 
-    # Return S3 path for downstream pipeline stages (transform, load)
-    return s3_key
+    if validation_result.is_critical_failure:
+        logger.critical(f"Pipeline stopped due to data quality issues: {validation_result.failure_reason}")
+        raise AirflowFailException(validation_result.failure_reason)
+
+    # Step 5: Persist validated data to the bronze layer
+    s3_key_valid = f"bronze/air_pollution/{base_path}"
+
+    valid_payload = {
+        "coord": data.get("coord"),
+        "list": validation_result.valid_records,
+        "metadata": {"status": "valid"}
+    }
+
+    s3_service.save_dict_as_json(valid_payload, s3_key_valid)
+    logger.info(f"Successfully saved valid data to S3: {s3_key_valid}")
+    return s3_key_valid
+
+
