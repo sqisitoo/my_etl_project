@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock
 
 import pytest
 from airflow.exceptions import AirflowFailException, AirflowSkipException
@@ -14,10 +14,17 @@ def valid_record_raw():
         "dt": 1606482000,
         "main": {"aqi": 2},
         "components": {
-            "co": 200.0, "no": 10.0, "no2": 10.0, "o3": 10.0,
-            "so2": 10.0, "pm2_5": 10.0, "pm10": 10.0, "nh3": 10.0
-        }
+            "co": 200.0,
+            "no": 10.0,
+            "no2": 10.0,
+            "o3": 10.0,
+            "so2": 10.0,
+            "pm2_5": 10.0,
+            "pm10": 10.0,
+            "nh3": 10.0,
+        },
     }
+
 
 @pytest.fixture
 def invalid_record_raw():
@@ -27,7 +34,6 @@ def invalid_record_raw():
         "main": {"aqi": "NOT_AN_INT"},  # Type error: AQI must be an integer
         # Missing 'components' field -> Schema validation error
     }
-
 
 
 @pytest.fixture
@@ -45,7 +51,7 @@ def test_extract_and_store_success_path(mock_clients, valid_record_raw):
     mock_open_weather_client, mock_s3_service = mock_clients
 
     # Prepare fake data and expected S3 key
-    fake_data, city = {"coord": {"lon": 50.0, "lat": 50.0}, "list": [valid_record_raw] * 24 }, "Berlin"
+    fake_data, city = {"coord": {"lon": 50.0, "lat": 50.0}, "list": [valid_record_raw] * 24}, "Berlin"
     logical_date = datetime(2025, 1, 1, tzinfo=timezone.utc)
     expected_key = (
         f"bronze/air_pollution/"
@@ -68,7 +74,7 @@ def test_extract_and_store_success_path(mock_clients, valid_record_raw):
         lon=50.0,
         start_ts=120000,
         end_ts=130000,
-        logical_date=logical_date
+        logical_date=logical_date,
     )
 
     # Assert the returned key matches the expected key
@@ -82,6 +88,7 @@ def test_extract_and_store_success_path(mock_clients, valid_record_raw):
     args, _ = mock_s3_service.save_dict_as_json.call_args
     saved_data = args[0]
     assert len(saved_data["list"]) == 24
+
 
 def test_extract_and_store_particular_failure_success(mock_clients, valid_record_raw, invalid_record_raw):
     """
@@ -98,7 +105,7 @@ def test_extract_and_store_particular_failure_success(mock_clients, valid_record
 
     mock_open_weather_client.get_historical_airpollution_data.return_value = {
         "coord": [50.0, 50.0],
-        "list": mixed_list
+        "list": mixed_list,
     }
 
     # Execute the extraction with DQ parameters
@@ -110,9 +117,9 @@ def test_extract_and_store_particular_failure_success(mock_clients, valid_record
         lon=50.0,
         start_ts=120000,
         end_ts=130000,
-        logical_date= datetime(2025, 1, 1),
+        logical_date=datetime(2025, 1, 1),
         dq_threshold_percent=20,
-        dq_min_failed_items=5
+        dq_min_failed_items=5,
     )
 
     # Verify that only valid records were saved (invalid records filtered out)
@@ -120,9 +127,10 @@ def test_extract_and_store_particular_failure_success(mock_clients, valid_record
     args = mock_s3_service.save_dict_as_json.call_args.args
     saved_data = args[0]
     assert len(saved_data["list"]) == 21
-    
+
     # Verify that quarantine was written (save_dict_as_json called twice)
     assert mock_s3_service.save_dict_as_json.call_count == 2
+
 
 def test_extract_and_store_critical_failure(mock_clients, valid_record_raw, invalid_record_raw):
     """
@@ -139,7 +147,7 @@ def test_extract_and_store_critical_failure(mock_clients, valid_record_raw, inva
 
     mock_open_weather_client.get_historical_airpollution_data.return_value = {
         "coord": [50.0, 50.0],
-        "list": mixed_list
+        "list": mixed_list,
     }
 
     # Expect the function to raise AirflowFailException due to critical data quality issues
@@ -152,14 +160,17 @@ def test_extract_and_store_critical_failure(mock_clients, valid_record_raw, inva
             lon=50.0,
             start_ts=120000,
             end_ts=130000,
-            logical_date= datetime(2025, 1, 1),
+            logical_date=datetime(2025, 1, 1),
             dq_threshold_percent=20,
-            dq_min_failed_items=5
+            dq_min_failed_items=5,
         )
 
     # Verify that valid data was NOT saved to S3
-    valid_calls = [c for c in mock_s3_service.save_dict_as_json.call_args_list 
-                   if "air_pollution/" in str(c) and "quarantine" not in str(c)]
+    valid_calls = [
+        c
+        for c in mock_s3_service.save_dict_as_json.call_args_list
+        if "air_pollution/" in str(c) and "quarantine" not in str(c)
+    ]
     assert len(valid_calls) == 0
 
 
@@ -191,6 +202,7 @@ def test_extract_and_store_raises_skip_exception_on_empty_data(mock_clients):
     # Assert that the S3 service was not called
     mock_s3_service.save_dict_as_json.assert_not_called()
 
+
 def test_validate_data_batch_returns_validation_result(valid_record_raw, invalid_record_raw):
     """
     Test that validate_data_batch returns a ValidationResult with correct structure.
@@ -200,11 +212,7 @@ def test_validate_data_batch_returns_validation_result(valid_record_raw, invalid
     """
     mixed_list = ([valid_record_raw] * 18) + ([invalid_record_raw] * 2)
 
-    result = validate_data_batch(
-        mixed_list,
-        threshold_percent=20.0,
-        min_failed_items=5
-    )
+    result = validate_data_batch(mixed_list, threshold_percent=20.0, min_failed_items=5)
 
     # Verify result structure and values
     assert len(result.valid_records) == 18
@@ -212,8 +220,9 @@ def test_validate_data_batch_returns_validation_result(valid_record_raw, invalid
     assert result.is_critical_failure is False  # 10% < 20% and 2 < 5
     assert result.failure_reason == ""
     assert result.ts_validation  # Timestamp should be populated
-    assert all("error" in record and "raw" in record and "ts" in record
-               for record in result.quarantine_records)
+    assert all(
+        "error" in record and "raw" in record and "ts" in record for record in result.quarantine_records
+    )
 
 
 def test_validate_data_batch_critical_failure_detection(valid_record_raw, invalid_record_raw):
@@ -226,11 +235,7 @@ def test_validate_data_batch_critical_failure_detection(valid_record_raw, invali
     # 40% failure rate with 4 failed items
     mixed_list = ([valid_record_raw] * 6) + ([invalid_record_raw] * 4)
 
-    result = validate_data_batch(
-        mixed_list,
-        threshold_percent=20.0,
-        min_failed_items=5
-    )
+    result = validate_data_batch(mixed_list, threshold_percent=20.0, min_failed_items=5)
 
     # Fails percentage check (40% > 20%) but not absolute count check (4 < 5)
     assert result.is_critical_failure is False
@@ -239,11 +244,7 @@ def test_validate_data_batch_critical_failure_detection(valid_record_raw, invali
     # Now test with both checks exceeded
     mixed_list = ([valid_record_raw] * 6) + ([invalid_record_raw] * 6)
 
-    result = validate_data_batch(
-        mixed_list,
-        threshold_percent=20.0,
-        min_failed_items=5
-    )
+    result = validate_data_batch(mixed_list, threshold_percent=20.0, min_failed_items=5)
 
     # Exceeds both checks (50% > 20% AND 6 >= 5)
     assert result.is_critical_failure is True
@@ -251,7 +252,9 @@ def test_validate_data_batch_critical_failure_detection(valid_record_raw, invali
     assert "50.00%" in result.failure_reason
 
 
-def test_extract_and_store_partial_failure_with_quarantine_write(mock_clients, valid_record_raw, invalid_record_raw):
+def test_extract_and_store_partial_failure_with_quarantine_write(
+    mock_clients, valid_record_raw, invalid_record_raw
+):
     """
     Test that extract_and_store writes quarantine records to S3 for partial failures.
 
@@ -265,7 +268,7 @@ def test_extract_and_store_partial_failure_with_quarantine_write(mock_clients, v
 
     mock_open_weather_client.get_historical_airpollution_data.return_value = {
         "coord": {"lon": 50.0, "lat": 50.0},
-        "list": mixed_list
+        "list": mixed_list,
     }
 
     city = "Berlin"
@@ -281,7 +284,7 @@ def test_extract_and_store_partial_failure_with_quarantine_write(mock_clients, v
         end_ts=130000,
         logical_date=logical_date,
         dq_threshold_percent=20,
-        dq_min_failed_items=5
+        dq_min_failed_items=5,
     )
 
     # Verify quarantine was written
@@ -324,7 +327,7 @@ def test_extract_and_store_all_valid_records_deletes_quarantine(mock_clients, va
 
     mock_open_weather_client.get_historical_airpollution_data.return_value = {
         "coord": {"lon": 50.0, "lat": 50.0},
-        "list": valid_list
+        "list": valid_list,
     }
 
     city = "Berlin"
@@ -338,7 +341,7 @@ def test_extract_and_store_all_valid_records_deletes_quarantine(mock_clients, va
         lon=50.0,
         start_ts=120000,
         end_ts=130000,
-        logical_date=logical_date
+        logical_date=logical_date,
     )
 
     # Verify delete_object was called for quarantine
@@ -361,7 +364,9 @@ def test_extract_and_store_all_valid_records_deletes_quarantine(mock_clients, va
     assert saved_data["metadata"]["status"] == "valid"
 
 
-def test_extract_and_store_critical_failure_with_quarantine_saved(mock_clients, valid_record_raw, invalid_record_raw):
+def test_extract_and_store_critical_failure_with_quarantine_saved(
+    mock_clients, valid_record_raw, invalid_record_raw
+):
     """
     Test that extract_and_store saves quarantine records before raising exception on critical failure.
 
@@ -375,7 +380,7 @@ def test_extract_and_store_critical_failure_with_quarantine_saved(mock_clients, 
 
     mock_open_weather_client.get_historical_airpollution_data.return_value = {
         "coord": {"lon": 50.0, "lat": 50.0},
-        "list": mixed_list
+        "list": mixed_list,
     }
 
     city = "Berlin"
@@ -393,7 +398,7 @@ def test_extract_and_store_critical_failure_with_quarantine_saved(mock_clients, 
             end_ts=130000,
             logical_date=logical_date,
             dq_threshold_percent=20,
-            dq_min_failed_items=5
+            dq_min_failed_items=5,
         )
 
     # Verify quarantine was saved despite critical failure

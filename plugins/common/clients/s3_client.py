@@ -69,7 +69,7 @@ class S3Service:
         except Exception:
             logger.error(f"Failed to save JSON to s3://{self._bucket}/{key}")
             raise
-    
+
     def delete_object(self, key: str) -> None:
         try:
             logger.debug(f"Checking existence of s3://{self._bucket}/{key} before delete")
@@ -84,4 +84,3 @@ class S3Service:
         except Exception as err:
             logger.error(f"Failed to delete s3://{self._bucket}/{key}. Error: {err}")
             raise
-

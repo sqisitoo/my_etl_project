@@ -23,6 +23,7 @@ class ValidationResult:
     is_critical_failure: bool
     failure_reason: str
 
+
 def validate_data_batch(
     raw_records: list[dict[str, Any]],
     threshold_percent: float,
@@ -64,14 +65,14 @@ def validate_data_batch(
             valid_records.append(validated_model.model_dump(mode="json"))
         except ValidationError as err:
             failed_count += 1
-            logger.debug(f"Validation failed for record."
-                         f"Errors: {err.errors(include_url=False)}"
-                         f"Invalid record payload: {record}")
-            quarantine_records.append({
-                "error": err.errors(include_url=False),
-                "raw": record,
-                "ts": current_timestamp_isoformat
-            })
+            logger.debug(
+                f"Validation failed for record."
+                f"Errors: {err.errors(include_url=False)}"
+                f"Invalid record payload: {record}"
+            )
+            quarantine_records.append(
+                {"error": err.errors(include_url=False), "raw": record, "ts": current_timestamp_isoformat}
+            )
 
     # Calculate validation metrics
     failure_rate = (failed_count / total_count) * 100
@@ -86,24 +87,24 @@ def validate_data_batch(
     is_absolute_count_high = failed_count >= min_failed_items
 
     # Edge case: Total failure indicates critical data quality issue
-    is_total_failure = (len(valid_records) == 0)
+    is_total_failure = len(valid_records) == 0
 
     is_critical = (is_failure_rate_high and is_absolute_count_high) or is_total_failure
 
     reason = ""
     if is_critical:
-        reason = (f"Threshold exceeded: {failure_rate:.2f}% failures "
-                  f"(Threshold: {threshold_percent}%, MinItems: {min_failed_items})")
+        reason = (
+            f"Threshold exceeded: {failure_rate:.2f}% failures "
+            f"(Threshold: {threshold_percent}%, MinItems: {min_failed_items})"
+        )
 
     return ValidationResult(
         valid_records=valid_records,
         quarantine_records=quarantine_records,
         ts_validation=current_timestamp_isoformat,
         is_critical_failure=is_critical,
-        failure_reason=reason
+        failure_reason=reason,
     )
-
-
 
 
 def extract_and_store(
@@ -194,12 +195,11 @@ def extract_and_store(
         logger.info("Writing %s quarantined records", len(validation_result.quarantine_records))
         quarantine_payload = {
             "metadata": {
-                "status": "critical_failure" if validation_result.is_critical_failure
-                                             else "partial_faiilure",
+                "status": "critical_failure" if validation_result.is_critical_failure else "partial_faiilure",
                 "failure_reason": validation_result.failure_reason,
-                "processed_at": validation_result.ts_validation
+                "processed_at": validation_result.ts_validation,
             },
-            "records": validation_result.quarantine_records
+            "records": validation_result.quarantine_records,
         }
 
         s3_service.save_dict_as_json(quarantine_payload, s3_key_quarantine)
@@ -218,11 +218,9 @@ def extract_and_store(
     valid_payload = {
         "coord": data.get("coord"),
         "list": validation_result.valid_records,
-        "metadata": {"status": "valid"}
+        "metadata": {"status": "valid"},
     }
 
     s3_service.save_dict_as_json(valid_payload, s3_key_valid)
     logger.info(f"Successfully saved valid data to S3: {s3_key_valid}")
     return s3_key_valid
-
-

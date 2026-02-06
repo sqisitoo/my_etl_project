@@ -12,6 +12,7 @@ class _AqiQualityComponents(BaseModel):
     Represents pollutant concentrations from air quality monitoring API.
     All values are validated to ensure non-negative measurements.
     """
+
     co: float = Field(..., ge=0, description="Carbon monoxide")
     no: float = Field(..., ge=0, description="Nitrogen monoxide")
     no2: float = Field(..., ge=0, description="Nitrogen dioxide")
@@ -27,8 +28,7 @@ class _AqiQualityComponents(BaseModel):
         """Validate that component values are non-negative."""
         if v < 0:
             logger.error(
-                f"Validation failed for field '{info.field_name}': "
-                f"negative value {v} is not allowed"
+                f"Validation failed for field '{info.field_name}': negative value {v} is not allowed"
             )
             raise ValueError(f"Value for {info.field_name} cannot be negative.")
         logger.debug(f"Field '{info.field_name}' validated successfully with value: {v}")
@@ -41,6 +41,7 @@ class _MainInfo(BaseModel):
 
     Contains the overall AQI rating on a scale from 1 (good) to 5 (very poor).
     """
+
     aqi: int = Field(..., ge=1, le=5, description="Air Quality Index (1-5)")
 
 
@@ -52,11 +53,7 @@ class AirPollutionRecord(BaseModel):
     from air quality monitoring measurements.
     """
 
-    model_config = ConfigDict(
-        strict=False,
-        extra="ignore",
-        frozen=True
-    )
+    model_config = ConfigDict(strict=False, extra="ignore", frozen=True)
 
     dt: int = Field(..., ge=946681200, le=2524604400, description="Timestamp")
     main: _MainInfo
