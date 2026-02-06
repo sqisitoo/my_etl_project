@@ -4,6 +4,7 @@ import logging
 from typing import TYPE_CHECKING, Any, cast
 
 import pandas as pd
+from botocore.exceptions import ClientError
 
 if TYPE_CHECKING:
     from botocore.client import BaseClient
@@ -79,8 +80,13 @@ class S3Service:
             self._client.delete_object(Bucket=self._bucket, Key=key)
             logger.info(f"Successfully deleted s3://{self._bucket}/{key}")
 
-        except self._client.exceptions.NoSuchKey:
-            logger.warning(f"Object not found for deletion: s3://{self._bucket}/{key}")
+        except ClientError as err:
+            error_code = err.response.get("Error", {}).get("Code")
+            if error_code in ("404", "NoSuchKey", "NotFound"):
+                logger.warning(f"Object not found for deletion: s3://{self._bucket}/{key}")
+                return
+            logger.error(f"Failed to delete s3://{self._bucket}/{key}. Error: {err}")
+            raise
         except Exception as err:
             logger.error(f"Failed to delete s3://{self._bucket}/{key}. Error: {err}")
             raise
