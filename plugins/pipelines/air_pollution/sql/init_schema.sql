@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS air_pollution (
     measured_at TIMESTAMPTZ,
     day_of_week VARCHAR(10),
     time_of_day TIME,
+    co REAL,
     no REAL,
     no2 REAL,
     o3 REAL,
