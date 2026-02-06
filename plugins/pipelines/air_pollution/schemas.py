@@ -58,6 +58,6 @@ class AirPollutionRecord(BaseModel):
         frozen=True
     )
 
-    dt: int = Field(..., description="Timestamp")
+    dt: int = Field(..., ge=946681200, le=2524604400, description="Timestamp")
     main: _MainInfo
     components: _AqiQualityComponents
