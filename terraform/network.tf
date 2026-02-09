@@ -69,24 +69,33 @@ resource "aws_route_table_association" "public_2" {
 }
 
 resource "aws_eip" "nat" {
+  count = var.enable_nat_gateway ? 1 : 0
   domain = "vpc"
+
+  tags = {
+    Name = "nat-eip"
+  }
 }
 
 resource "aws_nat_gateway" "airflow" {
-  allocation_id = aws_eip.nat.id
+  count = var.enable_nat_gateway ? 1 : 0
+  allocation_id = aws_eip.nat[0].id
   subnet_id =  aws_subnet.public_1.id
 }
 
 resource "aws_route_table" "private" {
   vpc_id = aws_vpc.airflow.id
 
-  route {
-    cidr_block = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.airflow.id
+  dynamic route {
+    for_each = var.enable_nat_gateway ? [1] : []
+    content {
+      cidr_block = "0.0.0.0/0"
+      nat_gateway_id = aws_nat_gateway.airflow[0].id
+    }
   }
 
   tags = {
-    Name = "airflow_private_rt"
+    Name =  "airflow-private-rt"
   }
 }
 
