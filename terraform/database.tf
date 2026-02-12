@@ -4,7 +4,7 @@ resource "random_password" "rds_password" {
 }
 
 resource "aws_secretsmanager_secret" "rds_password_secret" {
-  name                    = "airflow-rds-password-${formatdate("YYYYMMDDhhmmss", timestamp())}"
+  name                    = "airflow-rds-password"
   recovery_window_in_days = 0
 }
 
