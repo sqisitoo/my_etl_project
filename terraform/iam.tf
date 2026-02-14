@@ -72,11 +72,6 @@ resource "aws_iam_role_policy_attachment" "task_s3" {
   policy_arn = aws_iam_policy.s3_access.arn
 }
 
-resource "aws_iam_role_policy_attachment" "task_secrets" {
-  role       = aws_iam_role.airflow_task_role.name
-  policy_arn = aws_iam_policy.secrets_access.arn
-}
-
 output "ecr_repository_url" {
   value = aws_ecr_repository.airflow.repository_url
 }
