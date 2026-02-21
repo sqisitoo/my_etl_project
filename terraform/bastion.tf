@@ -42,6 +42,7 @@ data "aws_ami" "amazon_linux" {
 
 resource "aws_security_group" "bastion_sg" {
   count  = var.create_bastion ? 1 : 0
+  name   = "bastion_sg"
   vpc_id = aws_vpc.airflow.id
 
   ingress {

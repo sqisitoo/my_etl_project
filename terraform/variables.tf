@@ -25,3 +25,14 @@ variable "allowed_ssh_cidrs" {
   type        = list(string)
   default     = []
 }
+
+variable "api_base_url" {
+  description = "OpenWeather API endpoint"
+  type        = string
+}
+
+variable "openweather_api_key" {
+  description = "OpenWeather API Key"
+  type        = string
+  sensitive   = true
+}

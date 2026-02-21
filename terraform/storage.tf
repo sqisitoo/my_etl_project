@@ -5,6 +5,7 @@ resource "random_string" "bucket_suffix" {
 }
 
 resource "aws_s3_bucket" "datalake" {
+  bucket        = "my-de-project-datalake-${random_string.bucket_suffix.result}"
   force_destroy = false
 
   tags = {
