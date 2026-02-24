@@ -473,7 +473,7 @@ resource "aws_ecs_task_definition" "airflow_monolith" {
 # into a running container for debugging (requires the SSM policy on the
 # task role, defined in iam.tf).
 # -----------------------------------------------------------------------------
-resource "aws_ecs_service" "airflow_apiserver" {
+resource "aws_ecs_service" "airflow_service" {
   name                   = "airflow-main-service"
   cluster                = aws_ecs_cluster.airflow.id
   task_definition        = aws_ecs_task_definition.airflow_monolith.arn
