@@ -16,7 +16,14 @@ env:
   # Ensure these versions match local development setup
   PYTHON_VERSION: "3.10"
   AIRFLOW_VERSION: "3.1.6"
-
+  AWS_REGION: "eu-north-1"
+  ECR_REPOSITORY: "airflow-repo"
+  ECS_TASK_FAMILY: "airflow-monolith"
+  CONTAINER_APISERVER: "airflow-apiserver"
+  CONTAINER_SCHEDULER: "airflow-scheduler"
+  CONTAINER_DAG_PROCESSOR: "airflow-dag-processor"
+  ECS_SERVICE: "airflow-main-service"
+  ECS_CLUSTER: "airflow-cluster"
 jobs:
   # JOB 1: INTEGRATION (CI)
   # Focus: Code quality, Static Analysis, Unit Testing.
@@ -24,6 +31,8 @@ jobs:
   integration:
     name: Code Quality & Tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout Code
@@ -39,7 +48,8 @@ jobs:
       - name: Install Dependencies
         run: make install_deps
       
-      # Create a dummy .env file if your tests rely on loading env vars
+      # Create a dummy .env file
+      # tests rely on loading env vars
       - name: Prepare Test Environment
         run: |
           cp .env.template .env
@@ -56,11 +66,14 @@ jobs:
   build-and-push:
     name: Build & Push Docker Image
     needs: integration
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write # Required for pushing to GHCR
+      id-token: write
     
+    outputs:
+      image_uri: ${{ steps.set-uri.outputs.image_uri}}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -69,31 +82,33 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       
-      # Login is required to push images
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
       
       # Automatically generate tags: 'latest' (for main) and 'sha-xyz' (for immutable versioning)
-      - name: Extract Metadata (tags, labels)
+      - name: Extract Metadata (tags)
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-            type=sha,prefix=sha-
+            type=sha,format=short
+            type=raw,value=latest
         
       - name: Build and Push Image
+        id: build-image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: docker/airflow/Dockerfile
-          # Push only if it's NOT a Pull Request
-          push: ${{ github.event_name != 'pull_request' }}
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           # Pass build arguments to ensure image matches config
@@ -104,3 +119,63 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       
+      - name: Set Image URI output
+        id: set-uri
+        run: |
+          IMAGE_URI=$(echo "${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}@${{ steps.build-image.outputs.digest }}")
+          echo "image_uri=${IMAGE_URI}" >> "$GITHUB_OUTPUT"
+  
+  deploy:
+    name: Deploy to Amazon ECS
+    needs: build-and-push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Download current ECS task definition
+        run: |
+            aws ecs describe-task-definition \
+            --task-definition ${{ env.ECS_TASK_FAMILY }} \
+            --query taskDefinition > task-definition.json
+      
+      - name: Render task definition (Apiserver)
+        id: render-apiserver
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: ${{ env.CONTAINER_APISERVER }}
+          image: ${{ needs.build-and-push.outputs.image_uri }}
+      
+      - name: Render task definition (Scheduler)
+        id: render-scheduler
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ${{ steps.render-apiserver.outputs.task-definition }}
+          container-name: ${{ env.CONTAINER_SCHEDULER }}
+          image: ${{ needs.build-and-push.outputs.image_uri }}
+      
+      - name: Render task definition (Dag Processor)
+        id: render-dag-processor
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ${{ steps.render-scheduler.outputs.task-definition }}
+          container-name: ${{ env.CONTAINER_DAG_PROCESSOR }}
+          image: ${{ needs.build-and-push.outputs.image_uri }}
+      
+      - name: Deploy to ECS service
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.render-dag-processor.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
