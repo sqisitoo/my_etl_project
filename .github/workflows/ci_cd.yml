@@ -66,7 +66,7 @@ jobs:
   build-and-push:
     name: Build & Push Docker Image
     needs: integration
-    # if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -128,9 +128,9 @@ jobs:
   deploy:
     name: Deploy to Amazon ECS
     needs: build-and-push
-    # if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 15 # защита от зависаний из-за нехватки Fargate Spot
+    timeout-minutes: 15
     permissions:
       contents: read
       id-token: write

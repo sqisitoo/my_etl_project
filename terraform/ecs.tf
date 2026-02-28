@@ -499,6 +499,10 @@ resource "aws_ecs_service" "airflow_service" {
     assign_public_ip = true
   }
 
+  lifecycle {
+    ignore_changes = [ task_definition ]
+  }
+
   # Circuit breaker: if a new deployment keeps crashing, ECS stops retrying
   # and rolls back to the last stable version automatically.
   # Saves money and avoids infinite restart loops.
