@@ -36,3 +36,20 @@ variable "openweather_api_key" {
   type        = string
   sensitive   = true
 }
+
+# snowflake variables
+variable "snowflake_organization_name" {
+  description = "snowflake organization name"
+  type        = string
+}
+
+variable "snowflake_account_name" {
+  description = "snowflake account name"
+  type        = string
+}
+
+variable "snowflake_user" {
+  description = "snowflake service user with rolles needed for account management"
+  type        = string
+  default     = "TERRAFORM_SVC"
+}

@@ -14,6 +14,11 @@ terraform {
       source  = "hashicorp/tls"
       version = "~> 4.0"
     }
+
+    snowflake = {
+      source  = "snowflakedb/snowflake"
+      version = "~> 2.1.0"
+    }
   }
 
   backend "s3" {}
@@ -30,4 +35,12 @@ provider "aws" {
       ManagedBy   = "Terraform"
     }
   }
+}
+
+provider "snowflake" {
+  organization_name = var.snowflake_organization_name
+  account_name      = var.snowflake_account_name
+  user              = var.snowflake_user
+  role              = "SYSADMIN"
+  authenticator     = "SNOWFLAKE_JWT"
 }
