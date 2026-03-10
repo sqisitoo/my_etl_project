@@ -43,5 +43,5 @@ provider "snowflake" {
   user                     = var.snowflake_user
   role                     = "TERRAFORM_ROLE"
   authenticator            = "SNOWFLAKE_JWT"
-  preview_features_enabled = ["snowflake_storage_integration_aws_resource"]
+  preview_features_enabled = ["snowflake_storage_integration_aws_resource", "snowflake_stage_external_s3_resource"]
 }
