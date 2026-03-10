@@ -53,3 +53,15 @@ variable "snowflake_user" {
   type        = string
   default     = "TERRAFORM_SVC"
 }
+
+variable "snowflake_iam_user_arn" {
+  description = "The ARN of the Snowflake-generated IAM user used to assume the AWS role for S3 access. Leave empty for initial creation."
+  type        = string
+  default     = ""
+}
+
+variable "snowflake_external_id" {
+  description = "The External ID provided by Snowflake for the IAM role trust policy. Leave empty for initial creation."
+  type        = string
+  default     = ""
+}
