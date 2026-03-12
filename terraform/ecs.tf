@@ -500,7 +500,7 @@ resource "aws_ecs_service" "airflow_service" {
   }
 
   lifecycle {
-    ignore_changes = [ task_definition ]
+    ignore_changes = [task_definition]
   }
 
   # Circuit breaker: if a new deployment keeps crashing, ECS stops retrying

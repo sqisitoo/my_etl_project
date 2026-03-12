@@ -36,3 +36,32 @@ variable "openweather_api_key" {
   type        = string
   sensitive   = true
 }
+
+# snowflake variables
+variable "snowflake_organization_name" {
+  description = "snowflake organization name"
+  type        = string
+}
+
+variable "snowflake_account_name" {
+  description = "snowflake account name"
+  type        = string
+}
+
+variable "snowflake_user" {
+  description = "snowflake service user with rolles needed for account management"
+  type        = string
+  default     = "TERRAFORM_SVC"
+}
+
+variable "snowflake_iam_user_arn" {
+  description = "The ARN of the Snowflake-generated IAM user used to assume the AWS role for S3 access. Leave empty for initial creation."
+  type        = string
+  default     = ""
+}
+
+variable "snowflake_external_id" {
+  description = "The External ID provided by Snowflake for the IAM role trust policy. Leave empty for initial creation."
+  type        = string
+  default     = ""
+}
