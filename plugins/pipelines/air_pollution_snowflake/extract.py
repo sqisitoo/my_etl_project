@@ -54,6 +54,6 @@ def extract_air_pollution_to_s3(
         f"{int(logical_date.timestamp())}.json"
     )
 
-    s3_service.save_dict_as_json(raw_list, s3_key)
+    s3_service.save_dict_as_json(data, s3_key)
     logger.info(f"Successfully saved data to S3: {s3_key}")
     return s3_key
