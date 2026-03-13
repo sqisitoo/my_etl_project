@@ -46,7 +46,7 @@ def extract_air_pollution_to_s3(
 
     # Build a partitioned bronze key for traceable and query-friendly storage.
     s3_key = (
-        f"bronze/air_pollution"
+        f"bronze/air_pollution/"
         f"city={city}/"
         f"year={logical_date.year}/"
         f"month={logical_date.month:02d}/"
