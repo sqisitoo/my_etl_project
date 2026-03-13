@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
-import pytest
 
+import pytest
 from airflow.exceptions import AirflowSkipException
 
 from plugins.pipelines.air_pollution_snowflake.extract import extract_air_pollution_to_s3
@@ -25,6 +25,7 @@ def record_raw():
         },
     }
 
+
 @pytest.fixture
 def mock_clients():
     """
@@ -32,9 +33,10 @@ def mock_clients():
     """
     return MagicMock(), MagicMock()
 
+
 def test_extract_air_pollution_to_s3_success_path(mock_clients, record_raw):
     """
-    Test that extract_and_store saves data to S3 and returns the correct key when data is present.
+    Test that extract_air_pollution_to_s3  saves data to S3 and returns the correct key when data is present.
     """
     mock_open_weather_client, mock_s3_service = mock_clients
 
@@ -77,9 +79,11 @@ def test_extract_air_pollution_to_s3_success_path(mock_clients, record_raw):
     saved_data = args[0]
     assert len(saved_data["list"]) == 24
 
+
 def test_extract_air_pollution_to_s3_raises_skip_exception_on_empty_data(mock_clients):
     """
-    Test that extract_air_pollution_to_s3 skips processing and does not write to S3 when no records are returned.
+    Test that extract_air_pollution_to_s3 skips processing and does not write to S3
+    when no records are returned.
     """
     mock_open_weather_client, mock_s3_service = mock_clients
     mock_open_weather_client.get_historical_airpollution_data.return_value = {"list": []}

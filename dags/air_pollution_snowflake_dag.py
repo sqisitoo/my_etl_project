@@ -6,13 +6,14 @@ from plugins.common.config import settings
 
 PLUGINS_DIR = "/opt/airflow/plugins"
 
+
 @dag(
     dag_id="air_pollution_snowflake_dag",
     start_date=datetime(2026, 3, 10),
     schedule="@daily",
     catchup=False,
     template_searchpath=[PLUGINS_DIR],
-    default_args={"retries": 2, "retry_delay": timedelta(minutes=1)}
+    default_args={"retries": 2, "retry_delay": timedelta(minutes=1)},
 )
 def air_pollution_snowflake_dag():
     @task
@@ -22,7 +23,7 @@ def air_pollution_snowflake_dag():
         config_obj = get_cities_config()
 
         return [city.model_dump() for city in config_obj.cities]
-    
+
     @task
     def extract_data(city_info: dict, logical_date, data_interval_start, data_interval_end):
         from airflow.providers.amazon.aws.hooks.s3 import S3Hook
@@ -49,8 +50,9 @@ def air_pollution_snowflake_dag():
         )
 
         return {"s3_key_to_raw_data": s3_key_to_raw_data, "city": city_info["name"]}
-    
+
     get_cities_config_task = get_cities_config()
-    extract_task_group = extract_data.expand(city_info=get_cities_config_task)
+    extract_data.expand(city_info=get_cities_config_task)
+
 
 air_pollution_snowflake_dag()

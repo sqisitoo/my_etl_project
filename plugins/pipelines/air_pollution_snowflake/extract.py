@@ -1,6 +1,5 @@
 import logging
-from datetime import datetime, timezone
-from typing import Any
+from datetime import datetime
 
 from airflow.exceptions import AirflowSkipException
 
@@ -8,6 +7,7 @@ from plugins.common.clients.open_weather_client import OpenWeatherApiClient
 from plugins.common.clients.s3_client import S3Service
 
 logger = logging.getLogger(__name__)
+
 
 def extract_air_pollution_to_s3(
     *,
@@ -18,7 +18,7 @@ def extract_air_pollution_to_s3(
     lon: float,
     start_ts: int | float,
     end_ts: int | float,
-    logical_date: datetime
+    logical_date: datetime,
 ) -> str:
     """Fetch air pollution records for a city and persist them to S3.
 
