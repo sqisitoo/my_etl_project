@@ -1,6 +1,8 @@
 x-airflow-common:
   &airflow-common
-  build: ${AIRFLOW_PATH_TO_DOCKERFILE}
+  build:
+    context: .
+    dockerfile: ${AIRFLOW_PATH_TO_DOCKERFILE}
   environment:
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
@@ -14,6 +16,8 @@ x-airflow-common:
     AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
     AIRFLOW_CONN_AWS_DEFAULT: 'aws://?extra={"aws_access_key_id":"${AWS_ACCESS_KEY_ID}","aws_secret_access_key":"${AWS_SECRET_ACCESS_KEY}","region_name":"${AWS_REGION}"}'
     AIRFLOW_CONN_MY_POSTGRES_DWH: 'postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}'
+    AIRFLOW_CONN_SNOWFLAKE_CONN: >
+      snowflake://${SNOWFLAKE_USER}@/?schema=${SNOWFLAKE_SCHEMA}&account=${SNOWFLAKE_ACCOUNT}&database=${SNOWFLAKE_DATABASE}&warehouse=${SNOWFLAKE_WAREHOUSE}&role=${SNOWFLAKE_ROLE}&private_key_file=/opt/airflow/keys/snowflake_tf_snow_key.p8
     AIRFLOW__API_AUTH__JWT_SECRET: 'AyM8_sM5y8_sM5y8_sM5y8_sM5y8_sM5y8_sM5y8_sM='
     AIRFLOW__API__SECRET_KEY: '= HyGZz9cZ/Wfo8+CTZlQSOw=='
     AIRFLOW__SCHEDULER__CREATE_CRON_DATA_INTERVALS: 'true'
@@ -21,6 +25,7 @@ x-airflow-common:
     - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags/
     - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins/
     - airflow_logs:/opt/airflow/logsdoc
+    - ${AIRFLOW_PROJ_DIR:-.}/keys:/opt/airflow/keys/
   user: "${AIRFLOW_UID:-50000}:${AIRFLOW_GID:-50000}"
   env_file:
     - ./.env
