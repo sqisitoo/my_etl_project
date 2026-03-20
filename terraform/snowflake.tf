@@ -63,7 +63,7 @@ resource "aws_iam_role" "snowflake_role" {
 }
 
 resource "aws_iam_role_policy_attachment" "snowflake_s3" {
-  role       = aws_iam_role.snowflake_role.name
+  role = aws_iam_role.snowflake_role.name
   policy_arn = aws_iam_policy.s3_access.arn
 }
 
@@ -85,10 +85,10 @@ resource "snowflake_stage_external_s3" "stage_external_s3" {
 }
 
 resource "snowflake_table" "raw_air_pollution" {
-  database = snowflake_database.raw_db.name
-  schema   = snowflake_schema.raw_air_pollution.name
-  name     = "RAW_AIR_POLLUTION"
-  comment  = "Raw JSON payloads for air pollution data"
+  database            = snowflake_database.raw_db.name
+  schema              = snowflake_schema.raw_air_pollution.name
+  name                = "RAW_AIR_POLLUTION"
+  comment             = "Raw JSON payloads for air pollution data"
 
   column {
     name     = "RAW_PAYLOAD"
