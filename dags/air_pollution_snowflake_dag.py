@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator
 from airflow.sdk import dag, task
 
 from plugins.common.config import settings
@@ -51,8 +52,16 @@ def air_pollution_snowflake_dag():
 
         return {"s3_key_to_raw_data": s3_key_to_raw_data, "city": city_info["name"]}
 
+    load_raw_data = SQLExecuteQueryOperator(
+        task_id="load_air_pollution_data",
+        sql="pipelines/air_pollution_snowflake/sql/copy_air_pollution_data.sql",
+        conn_id="snowflake_conn",
+    )
+
     get_cities_config_task = get_cities_config()
-    extract_data.expand(city_info=get_cities_config_task)
+    extract_tasks_group = extract_data.expand(city_info=get_cities_config_task)
+
+    extract_tasks_group >> load_raw_data
 
 
 air_pollution_snowflake_dag()

@@ -84,6 +84,34 @@ resource "snowflake_stage_external_s3" "stage_external_s3" {
 
 }
 
+resource "snowflake_table" "raw_air_pollution" {
+  database            = snowflake_database.raw_db.name
+  schema              = snowflake_schema.raw_air_pollution.name
+  name                = "RAW_AIR_POLLUTION"
+  comment             = "Raw JSON payloads for air pollution data"
+
+  column {
+    name     = "RAW_PAYLOAD"
+    type     = "VARIANT"
+    nullable = false
+  }
+
+  column {
+    name     = "_LOADED_AT"
+    type     = "TIMESTAMP_NTZ(9)"
+    nullable = false
+    default {
+      expression = "CURRENT_TIMESTAMP()"
+    }
+  }
+
+  column {
+    name     = "_SOURCE_FILE"
+    type     = "VARCHAR"
+    nullable = false
+  }
+}
+
 output "snowflake_iam_user_export" {
   description = "Command to set the Snowflake IAM user ARN as an environment variable"
   value       = "export TF_VAR_snowflake_iam_user_arn='${snowflake_storage_integration_aws.s3_storage_integration.describe_output[0].iam_user_arn}'"
