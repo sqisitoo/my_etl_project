@@ -63,7 +63,7 @@ resource "aws_iam_role" "snowflake_role" {
 }
 
 resource "aws_iam_role_policy_attachment" "snowflake_s3" {
-  role = aws_iam_role.snowflake_role.name
+  role       = aws_iam_role.snowflake_role.name
   policy_arn = aws_iam_policy.s3_access.arn
 }
 
@@ -85,10 +85,10 @@ resource "snowflake_stage_external_s3" "stage_external_s3" {
 }
 
 resource "snowflake_table" "raw_air_pollution" {
-  database            = snowflake_database.raw_db.name
-  schema              = snowflake_schema.raw_air_pollution.name
-  name                = "RAW_AIR_POLLUTION"
-  comment             = "Raw JSON payloads for air pollution data"
+  database = snowflake_database.raw_db.name
+  schema   = snowflake_schema.raw_air_pollution.name
+  name     = "RAW_AIR_POLLUTION"
+  comment  = "Raw JSON payloads for air pollution data"
 
   column {
     name     = "RAW_PAYLOAD"
@@ -109,6 +109,95 @@ resource "snowflake_table" "raw_air_pollution" {
     name     = "_SOURCE_FILE"
     type     = "VARCHAR"
     nullable = false
+  }
+}
+
+resource "tls_private_key" "airflow_svc_key" {
+  algorithm = "RSA"
+  rsa_bits  = 2048
+}
+
+resource "snowflake_account_role" "airflow" {
+  name = "AIRFLOW_ROLE"
+}
+
+resource "snowflake_service_user" "service_user" {
+  name = "AIRFLOW_SVC"
+
+  default_warehouse = snowflake_warehouse.tf_warehouse.name
+  default_role      = snowflake_account_role.airflow.name
+
+  rsa_public_key = tls_private_key.airflow_svc_key.public_key_pem
+}
+
+resource "snowflake_grant_account_role" "airflow_service_user" {
+  role_name = snowflake_account_role.airflow.name
+  user_name = snowflake_service_user.service_user.name
+}
+
+resource "snowflake_grant_privileges_to_account_role" "airflow_wh" {
+  account_role_name = snowflake_account_role.airflow.name
+  privileges        = ["USAGE", "OPERATE"]
+
+  on_account_object {
+    object_type = "WAREHOUSE"
+    object_name = snowflake_warehouse.tf_warehouse.name
+  }
+}
+
+resource "snowflake_grant_privileges_to_account_role" "airflow_db" {
+  account_role_name = snowflake_account_role.airflow.name
+  privileges        = ["USAGE"]
+
+  on_account_object {
+    object_type = "DATABASE"
+    object_name = snowflake_database.raw_db.name
+  }
+}
+
+resource "snowflake_grant_privileges_to_account_role" "airflow_schema_usage" {
+
+  account_role_name = snowflake_account_role.airflow.name
+  privileges        = ["USAGE"]
+
+  on_schema {
+    schema_name = "${snowflake_database.raw_db.name}.${snowflake_schema.raw_air_pollution.name}"
+  }
+}
+
+resource "snowflake_grant_privileges_to_account_role" "airflow_tables_usage" {
+
+  account_role_name = snowflake_account_role.airflow.name
+  privileges        = ["SELECT", "INSERT"]
+
+  on_schema_object {
+    all {
+      object_type_plural = "TABLES"
+      in_schema          = "${snowflake_database.raw_db.name}.${snowflake_schema.raw_air_pollution.name}"
+    }
+  }
+}
+
+resource "snowflake_grant_privileges_to_account_role" "airflow_tables_usage_feature" {
+
+  account_role_name = snowflake_account_role.airflow.name
+  privileges        = ["SELECT", "INSERT"]
+
+  on_schema_object {
+    future {
+      object_type_plural = "TABLES"
+      in_schema          = "${snowflake_database.raw_db.name}.${snowflake_schema.raw_air_pollution.name}"
+    }
+  }
+}
+
+resource "snowflake_grant_privileges_to_account_role" "airflow_stage" {
+  account_role_name = snowflake_account_role.airflow.name
+  privileges        = ["USAGE", "READ"]
+
+  on_schema_object {
+    object_type = "STAGE"
+    object_name = "${snowflake_database.raw_db.name}.${snowflake_schema.raw_air_pollution.name}.${snowflake_stage_external_s3.stage_external_s3.name}"
   }
 }
 
