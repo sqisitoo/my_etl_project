@@ -71,7 +71,8 @@ resource "aws_iam_policy" "secrets_access" {
         Action = ["secretsmanager:GetSecretValue"]
         Resource = [
           aws_secretsmanager_secret.airflow_core_secrets.arn,
-          aws_secretsmanager_secret.api_key_secret.arn
+          aws_secretsmanager_secret.api_key_secret.arn,
+          aws_secretsmanager_secret.airflow_snowflake.arn
         ]
       }
     ]

@@ -135,7 +135,8 @@ resource "aws_security_group_rule" "rds_ingress_from_ecs" {
 #   fernet_key  — encrypts sensitive values (Connections, Variables) stored
 #                 in the metadata DB. 32 bytes → base64-encoded.
 #   jwt_secret  — signs JWT tokens for the REST API authentication.
-#   flask_secret — signs Flask session cookies for the Airflow Web UI.
+#   flask_secret — secret key for the Airflow API; signs session cookies
+#                  and CSRF tokens in the Web UI.
 #
 # All three are generated once at `terraform apply` and persist in TF state.
 # Rotating them later will invalidate existing sessions / encrypted data.
@@ -202,13 +203,16 @@ locals {
 # ECS agent fetches them at container start and exposes as env vars inside
 # the container — this way they never appear in the task definition JSON.
 #
-# Two secrets are used:
+# Three secrets are used:
 #   api_key_secret       — OpenWeather API key (single string).
 #   airflow_core_secrets — a JSON blob bundling all Airflow-internal secrets
 #                          (DB conn, Fernet key, JWT, Flask key, DWH conn).
 #                          Each key in the JSON is extracted individually via
 #                          the "secret:jsonKey::" ARN syntax in the ECS secrets
 #                          block below.
+#   airflow_snowflake    — Snowflake service-user connection stored as a JSON
+#                          blob matching the Airflow Connection schema.
+#                          Injected whole as AIRFLOW_CONN_SNOWFLAKE_CONN.
 # -----------------------------------------------------------------------------
 
 resource "aws_secretsmanager_secret" "api_key_secret" {
@@ -242,6 +246,33 @@ resource "aws_secretsmanager_secret_version" "airflow_core_secrets_version" {
   })
 }
 
+# Snowflake service-user connection — stored in Secrets Manager so the
+# private key never appears in the ECS task definition.
+resource "aws_secretsmanager_secret" "airflow_snowflake" {
+  name                    = "airflow/snowflake/service-user"
+  recovery_window_in_days = 0
+}
+
+# JSON blob follows Airflow's Connection schema: conn_type, login, schema,
+# and an "extra" map with account, warehouse, database, role, and the
+# base64-encoded private key for key-pair authentication (no password).
+resource "aws_secretsmanager_secret_version" "airflow_snowflake" {
+  secret_id = aws_secretsmanager_secret.airflow_snowflake.id
+  secret_string = jsonencode({
+    "conn_type" = "snowflake"
+    "login"     = snowflake_service_user.service_user.name
+    "password"  = ""
+    "schema"    = snowflake_schema.raw_air_pollution.name
+    "extra" = {
+      "account"             = "${var.snowflake_organization_name}-${var.snowflake_account_name}"
+      "warehouse"           = snowflake_warehouse.tf_warehouse.name
+      "database"            = snowflake_database.raw_db.name
+      "role"                = snowflake_account_role.airflow.name
+      "private_key_content" = base64encode(tls_private_key.airflow_svc_key.private_key_pem)
+    }
+  })
+}
+
 # -----------------------------------------------------------------------------
 # 6. ECS SECRETS MAPPING — wires Secrets Manager → container env vars
 # -----------------------------------------------------------------------------
@@ -252,6 +283,10 @@ resource "aws_secretsmanager_secret_version" "airflow_core_secrets_version" {
 #
 # API_KEY is a standalone secret (single string, not JSON), so it uses
 # the plain ARN without a JSON-key suffix.
+#
+# AIRFLOW_CONN_SNOWFLAKE_CONN also uses the plain ARN — ECS injects the
+# entire JSON blob as a single env var, and Airflow parses it natively
+# as a Connection URI.
 # -----------------------------------------------------------------------------
 locals {
   airflow_secrets_arn = aws_secretsmanager_secret.airflow_core_secrets.arn
@@ -280,6 +315,10 @@ locals {
     {
       name      = "DB_PASSWORD",
       valueFrom = "${local.airflow_secrets_arn}:DB_PASSWORD::"
+    },
+    {
+      name      = "AIRFLOW_CONN_SNOWFLAKE_CONN",
+      valueFrom = aws_secretsmanager_secret.airflow_snowflake.arn
     }
   ]
 }
@@ -295,7 +334,8 @@ locals {
 #   - LOAD_EXAMPLES=false: keeps the Airflow UI clean.
 #   - DAGS_ARE_PAUSED_AT_CREATION=true: new DAGs won't fire until you
 #     explicitly unpause them — prevents surprise runs after deploy.
-#   - FabAuthManager: Flask-AppBuilder auth backend.
+#   - FabAuthManager: pluggable auth backend (Airflow 3), backed by
+#     Flask-AppBuilder.
 #   - Remote logging to S3: task logs persist beyond Fargate task lifecycle.
 #   - AIRFLOW_CONN_AWS_DEFAULT="aws://": tells Airflow to use the task role's
 #     IAM credentials for all AWS operations (S3 logging, etc.) — no
@@ -350,7 +390,7 @@ locals {
 #   airflow-scheduler     — runs `db migrate`, creates the admin user on
 #                           first boot, then starts the scheduler loop.
 #   airflow-dag-processor — parses DAG files independently from the
-#                           scheduler (Airflow 2.7+ standalone DAG processor).
+#                           scheduler (Airflow 3 standalone DAG processor).
 #
 # All three share the same env vars and secrets. Only the apiserver
 # exposes a port. All containers are marked essential=true, so if any
@@ -435,9 +475,9 @@ resource "aws_ecs_task_definition" "airflow_monolith" {
       }
     },
 
-    # --- Container 3: Standalone DAG Processor (Airflow 2.7+) ---
+    # --- Container 3: Standalone DAG Processor (Airflow 3) ---
     # Offloads DAG file parsing from the scheduler, improving scheduling
-    # latency. In a pet project this is optional but good practice.
+    # latency. A first-class component in Airflow 3.
     {
       name      = "airflow-dag-processor"
       image     = "${aws_ecr_repository.airflow.repository_url}:latest"
