@@ -5,7 +5,7 @@ ARG CONSTRAINT_URL="https://raw.githubusercontent.com/apache/airflow/constraints
 # Sets the environment variable for the DBT virtual environment path
 # This path is used by Airflow to locate and activate the isolated Python environment
 # where DBT dependencies are installed, separate from Airflow's dependencies
-ENV DBT_VENV_PATH="/opt/airflow/dbt-venv"
+ENV DBT_VENV_PATH="/opt/airflow/dbt_venv"
 
 ADD --chown=airflow:airflow ${CONSTRAINT_URL} /constraints.txt
 COPY --chown=airflow:airflow docker/airflow/requirements.txt /requirements.txt
