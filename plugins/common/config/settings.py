@@ -59,7 +59,8 @@ class _DBTSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_prefix="DBT_", extra="ignore")
 
     venv_path: str = "/opt/airflow/dbt-venv"
-    profiles_dir: str = "/opt/airflow/dbt_project"
+    profiles_dir: str
+    project_dir: str
 
     @computed_field
     def bin_path(self) -> Path:
