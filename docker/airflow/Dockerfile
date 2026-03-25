@@ -16,3 +16,4 @@ RUN python -m venv ${DBT_VENV_PATH} && \
 
 COPY --chown=airflow:airflow dags /opt/airflow/dags
 COPY --chown=airflow:airflow plugins /opt/airflow/plugins
+COPY --chown=airflow:airflow dbt_project /opt/airflow/dbt_project
