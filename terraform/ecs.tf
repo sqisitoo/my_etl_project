@@ -6,7 +6,7 @@
 #   1. ECS Cluster & CloudWatch logging
 #   2. Security groups (network access for ECS tasks)
 #   3. Cryptographic secrets (Fernet, JWT, Flask session key)
-#   4. Database locals (connection strings for metadata DB & DWH)
+#   4. Database & Snowflake locals (connection strings & credentials)
 #   5. AWS Secrets Manager (sensitive values stored outside task definition)
 #   6. ECS secrets mapping (Secrets Manager → container env vars)
 #   7. Airflow environment variables (non-secret, plain-text config)
@@ -65,7 +65,8 @@ resource "aws_cloudwatch_log_group" "airflow" {
 # -----------------------------------------------------------------------------
 # 2. SECURITY GROUP — Network rules for ECS Airflow tasks
 # -----------------------------------------------------------------------------
-# A single SG shared by all Airflow containers (apiserver + scheduler).
+# A single SG shared by all Airflow containers (apiserver, scheduler
+# and dag-processor).
 #
 # Inbound:  port 8080 (Airflow Web UI) restricted to your IP only
 #           (controlled by var.allowed_ssh_cidrs in terraform.tfvars).
@@ -195,6 +196,25 @@ locals {
   )
 }
 
+# Snowflake service-user credentials — assembled from Snowflake provider
+# resources (snowflake.tf) and the generated TLS key pair.
+# Two key variants are stored:
+#   key     — plain PEM, consumed by dbt (profiles.yml).
+#   key_b64 — base64-encoded PEM, consumed by the Airflow Snowflake connection.
+locals {
+  snowflake_creds = {
+    account   = "${var.snowflake_organization_name}-${var.snowflake_account_name}"
+    user      = snowflake_service_user.service_user.name
+    role      = snowflake_account_role.airflow.name
+    database  = snowflake_database.raw_db.name
+    warehouse = snowflake_warehouse.tf_warehouse.name
+    schema    = snowflake_schema.raw_air_pollution.name
+    # plain pem for dbt, encoded for airflow snowflake conn 
+    key     = tls_private_key.airflow_svc_key.private_key_pem
+    key_b64 = base64encode(tls_private_key.airflow_svc_key.private_key_pem)
+  }
+}
+
 # -----------------------------------------------------------------------------
 # 5. AWS SECRETS MANAGER — sensitive values injected into ECS containers
 # -----------------------------------------------------------------------------
@@ -203,7 +223,7 @@ locals {
 # ECS agent fetches them at container start and exposes as env vars inside
 # the container — this way they never appear in the task definition JSON.
 #
-# Three secrets are used:
+# Four secrets are used:
 #   api_key_secret       — OpenWeather API key (single string).
 #   airflow_core_secrets — a JSON blob bundling all Airflow-internal secrets
 #                          (DB conn, Fernet key, JWT, Flask key, DWH conn).
@@ -213,6 +233,10 @@ locals {
 #   airflow_snowflake    — Snowflake service-user connection stored as a JSON
 #                          blob matching the Airflow Connection schema.
 #                          Injected whole as AIRFLOW_CONN_SNOWFLAKE_CONN.
+#   dbt_snowflake        — Snowflake credentials for dbt (account, user, role,
+#                          database, warehouse, schema, private_key_content).
+#                          Individual keys are extracted via the same ARN
+#                          syntax for SNOWFLAKE_PRIVATE_KEY and SNOWFLAKE_USER.
 # -----------------------------------------------------------------------------
 
 resource "aws_secretsmanager_secret" "api_key_secret" {
@@ -260,19 +284,39 @@ resource "aws_secretsmanager_secret_version" "airflow_snowflake" {
   secret_id = aws_secretsmanager_secret.airflow_snowflake.id
   secret_string = jsonencode({
     "conn_type" = "snowflake"
-    "login"     = snowflake_service_user.service_user.name
-    "password"  = ""
-    "schema"    = snowflake_schema.raw_air_pollution.name
+    "login"     = local.snowflake_creds.user
+    "schema"    = local.snowflake_creds.schema
     "extra" = {
-      "account"             = "${var.snowflake_organization_name}-${var.snowflake_account_name}"
-      "warehouse"           = snowflake_warehouse.tf_warehouse.name
-      "database"            = snowflake_database.raw_db.name
-      "role"                = snowflake_account_role.airflow.name
-      "private_key_content" = base64encode(tls_private_key.airflow_svc_key.private_key_pem)
+      "account"             = local.snowflake_creds.account
+      "warehouse"           = local.snowflake_creds.warehouse
+      "database"            = local.snowflake_creds.database
+      "role"                = local.snowflake_creds.role
+      "private_key_content" = local.snowflake_creds.key_b64
     }
   })
 }
 
+# dbt Snowflake credentials — a JSON blob with account, user, role, database,
+# warehouse, schema, and the plain PEM private key (not base64). Individual
+# keys are extracted in the ECS secrets mapping (section 6) for SNOWFLAKE_PRIVATE_KEY
+# and SNOWFLAKE_USER env vars consumed by dbt.
+resource "aws_secretsmanager_secret" "dbt_snowflake" {
+  name                    = "airflow/snowflake/dbt_parameters"
+  recovery_window_in_days = 0
+}
+
+resource "aws_secretsmanager_secret_version" "dbt_snowflake" {
+  secret_id = aws_secretsmanager_secret.dbt_snowflake.id
+  secret_string = jsonencode({
+    "account"             = local.snowflake_creds.account
+    "user"                = local.snowflake_creds.user
+    "role"                = local.snowflake_creds.role
+    "database"            = local.snowflake_creds.database
+    "warehouse"           = local.snowflake_creds.warehouse
+    "schema"              = local.snowflake_creds.schema
+    "private_key_content" = local.snowflake_creds.key
+  })
+}
 # -----------------------------------------------------------------------------
 # 6. ECS SECRETS MAPPING — wires Secrets Manager → container env vars
 # -----------------------------------------------------------------------------
@@ -287,9 +331,13 @@ resource "aws_secretsmanager_secret_version" "airflow_snowflake" {
 # AIRFLOW_CONN_SNOWFLAKE_CONN also uses the plain ARN — ECS injects the
 # entire JSON blob as a single env var, and Airflow parses it natively
 # as a Connection URI.
+#
+# SNOWFLAKE_PRIVATE_KEY and SNOWFLAKE_USER are extracted from the
+# dbt_snowflake JSON secret using the same ARN + JSON-key syntax.
 # -----------------------------------------------------------------------------
 locals {
   airflow_secrets_arn = aws_secretsmanager_secret.airflow_core_secrets.arn
+  dbt_secrets_arn     = aws_secretsmanager_secret.dbt_snowflake.arn
   airflow_secrets = [
     { name = "API_KEY", valueFrom = aws_secretsmanager_secret.api_key_secret.arn },
     {
@@ -319,6 +367,14 @@ locals {
     {
       name      = "AIRFLOW_CONN_SNOWFLAKE_CONN",
       valueFrom = aws_secretsmanager_secret.airflow_snowflake.arn
+    },
+    {
+      name      = "SNOWFLAKE_PRIVATE_KEY",
+      valueFrom = "${local.dbt_secrets_arn}:private_key_content::"
+    },
+    {
+      name      = "SNOWFLAKE_USER",
+      valueFrom = "${local.dbt_secrets_arn}:user::"
     }
   ]
 }
@@ -340,6 +396,10 @@ locals {
 #   - AIRFLOW_CONN_AWS_DEFAULT="aws://": tells Airflow to use the task role's
 #     IAM credentials for all AWS operations (S3 logging, etc.) — no
 #     static AWS keys needed.
+#   - Snowflake non-secret vars (account, database, role, schema,
+#     warehouse): passed as plain env vars for dbt and DAG code.
+#   - DBT_* vars: dbt target, profiles dir, and project dir for the
+#     dbt CLI invoked by Airflow DAGs.
 #   - DB_* vars: passed for legacy DAG code that constructs its own
 #     connection instead of using the Airflow Connection object.
 # -----------------------------------------------------------------------------
@@ -377,6 +437,17 @@ locals {
     { name = "PYTHONPATH", value = "/opt/airflow" },
     { name = "AWS_S3_BUCKET_NAME", value = aws_s3_bucket.datalake.bucket },
     { name = "AWS_REGION", value = var.aws_region },
+
+    # --- Snowflake ---
+    { name = "SNOWFLAKE_ACCOUNT", value = local.snowflake_creds.account },
+    { name = "SNOWFLAKE_DATABASE", value = local.snowflake_creds.database },
+    { name = "SNOWFLAKE_ROLE", value = local.snowflake_creds.role },
+    { name = "SNOWFLAKE_SCHEMA", value = local.snowflake_creds.schema },
+    { name = "SNOWFLAKE_WAREHOUSE", value = local.snowflake_creds.warehouse },
+
+    { name = "DBT_TARGET", value = var.dbt_target },
+    { name = "DBT_PROFILES_DIR", value = var.dbt_profiles_dir },
+    { name = "DBT_PROJECT_DIR", value = var.dbt_project_dir }
   ]
 }
 
@@ -534,8 +605,6 @@ resource "aws_ecs_service" "airflow_service" {
 
     # CRITICAL: must be true in a public subnet without a NAT Gateway.
     # Without a public IP the task cannot reach the internet (ECR, S3, etc.).
-    # Alternative: use private subnets + NAT Gateway (enable_nat_gateway=true
-    # in variables.tf), but NAT costs ~$32/month — overkill for a pet project.
     assign_public_ip = true
   }
 

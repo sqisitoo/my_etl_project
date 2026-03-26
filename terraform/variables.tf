@@ -65,3 +65,22 @@ variable "snowflake_external_id" {
   type        = string
   default     = ""
 }
+
+# dbt variables
+variable "dbt_target" {
+  description = "dbt target environment (e.g. prod, dev)"
+  type        = string
+  default     = "prod"
+}
+
+variable "dbt_profiles_dir" {
+  description = "Path to the dbt profiles directory inside the container"
+  type        = string
+  default     = "/opt/airflow/dbt_project"
+}
+
+variable "dbt_project_dir" {
+  description = "Path to the dbt project directory inside the container"
+  type        = string
+  default     = "/opt/airflow/dbt_project"
+}

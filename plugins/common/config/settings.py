@@ -1,4 +1,5 @@
 from typing import Literal
+from pathlib import Path
 
 from pydantic import BaseModel, Field, HttpUrl, PostgresDsn, SecretStr, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -54,11 +55,23 @@ class _APISettings(BaseSettings):
     def url_str(self):
         return str(self.base_url).rstrip("/")
 
+class _DBTSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_prefix="DBT_", extra="ignore")
+
+    venv_path: str = "/opt/airflow/dbt-venv"
+    profiles_dir: str
+    project_dir: str
+
+    @computed_field
+    def bin_path(self) -> Path:
+        return Path(self.venv_path) / "bin" / "dbt"
+
 
 class Settings(BaseModel):
     aws: _AWSSettings = Field(default_factory=_AWSSettings)
     db: _DBSettings = Field(default_factory=_DBSettings)
     api: _APISettings = Field(default_factory=_APISettings)
+    dbt: _DBTSettings = Field(default_factory=_DBTSettings)
 
 
 settings = Settings()
