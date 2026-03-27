@@ -27,7 +27,7 @@ x-airflow-common:
     - airflow_logs:/opt/airflow/logsdoc
     - ${AIRFLOW_PROJ_DIR:-.}/keys:/opt/airflow/keys/
     - ${AIRFLOW_PROJ_DIR:-.}/dbt_project:/opt/airflow/dbt_project
-    - ${AIRFLOW_PROJ_DIR:-.}/dbt_venv:/opt/airflow/dbt_venv
+    # - ${AIRFLOW_PROJ_DIR:-.}/dbt_venv:/opt/airflow/dbt_venv
   user: "${AIRFLOW_UID:-50000}:${AIRFLOW_GID:-50000}"
   env_file:
     - ./.env
