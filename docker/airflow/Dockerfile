@@ -14,6 +14,10 @@ RUN pip install --no-cache-dir "apache-airflow==${AIRFLOW_VERSION}" -r /requirem
 RUN python -m venv ${DBT_VENV_PATH} && \
     ${DBT_VENV_PATH}/bin/pip install --no-cache-dir dbt-snowflake
 
+COPY --chown=airflow:airflow dbt_project /opt/airflow/dbt_project
+
+RUN ${DBT_VENV_PATH}/bin/dbt deps \
+    --project-dir /opt/airflow/dbt_project
+
 COPY --chown=airflow:airflow dags /opt/airflow/dags
 COPY --chown=airflow:airflow plugins /opt/airflow/plugins
-COPY --chown=airflow:airflow dbt_project /opt/airflow/dbt_project
