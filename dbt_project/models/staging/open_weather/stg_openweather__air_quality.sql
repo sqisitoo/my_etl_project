@@ -36,7 +36,11 @@ final as (
     
     select
 
-        md5(concat_ws('||', lat, lon, observation_ts)) as air_quality_id,
+        {{ dbt_utils.generate_surrogate_key([
+            'lat', 
+            'lon', 
+            'observation_ts'
+        ]) }} as air_quality_id,
 
         lat,
         lon,
