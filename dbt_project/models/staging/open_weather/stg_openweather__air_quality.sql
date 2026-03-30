@@ -26,7 +26,7 @@ flattened as (
         try_cast(f.value:components.nh3::string as float) as nh3,
 
         _source_file,
-        current_timestamp() as _loaded_at
+        {{ run_started_at }} as _stg_loaded_at
     from source,
     lateral flatten(input => raw_payload:list) f
 
