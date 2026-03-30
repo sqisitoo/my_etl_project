@@ -26,22 +26,37 @@ flattened as (
         try_cast(f.value:components.nh3::string as float) as nh3,
 
         _source_file,
-        {{ run_started_at }} as _stg_loaded_at
+        '{{ run_started_at }}'::timestamp_tz as _stg_loaded_at
     from source,
     lateral flatten(input => raw_payload:list) f
 
+),
+
+hashed as (
+    select
+        {{ dbt_utils.generate_surrogate_key([
+            'lat', 
+            'lon', 
+            'observation_ts'
+        ]) }} as air_quality_id,
+        *
+    from flattened
+),
+
+deduplicated as (
+    select *
+    from hashed
+    qualify row_number() over (
+        partition by air_quality_id
+        order by _stg_loaded_at desc
+    ) = 1
 ),
 
 final as (
     
     select
 
-        {{ dbt_utils.generate_surrogate_key([
-            'lat', 
-            'lon', 
-            'observation_ts'
-        ]) }} as air_quality_id,
-
+        air_quality_id,
         lat,
         lon,
         observation_ts,
@@ -56,9 +71,9 @@ final as (
         nh3,
         
         _source_file,
-        _loaded_at
+        _stg_loaded_at
         
-    from flattened        
+    from deduplicated      
 )
 
 select * from final
