@@ -97,7 +97,7 @@ resource "snowflake_table" "raw_air_pollution" {
   }
 
   column {
-    name     = "_LOADED_AT"
+    name     = "_RAW_LOADED_AT"
     type     = "TIMESTAMP_NTZ(9)"
     nullable = false
     default {

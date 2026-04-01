@@ -1,6 +1,6 @@
 with source as (
 
-    select raw_payload, _source_file
+    select raw_payload, _source_file, _raw_loaded_at
     from {{ source('openweather', 'raw_air_pollution') }}
 
 ),
@@ -26,6 +26,7 @@ flattened as (
         try_cast(f.value:components.nh3::string as float) as nh3,
 
         _source_file,
+        _raw_loaded_at,
         '{{ run_started_at }}'::timestamp_tz as _stg_loaded_at
     from source,
     lateral flatten(input => raw_payload:list) f
@@ -48,7 +49,7 @@ deduplicated as (
     from hashed
     qualify row_number() over (
         partition by air_quality_id
-        order by _stg_loaded_at desc
+        order by _raw_loaded_at desc
     ) = 1
 ),
 
