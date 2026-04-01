@@ -1,0 +1,10 @@
+version: 2
+
+sources:
+  - name: openweather
+    database: RAW
+    schema: AIR_POLLUTION
+    tables:
+      - name: raw_air_pollution
+        identifier: RAW_AIR_POLLUTION
+        description: "Raw JSON payloads from OpenWeatherMap Air Pollution API"

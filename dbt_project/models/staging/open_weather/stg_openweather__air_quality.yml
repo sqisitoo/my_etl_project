@@ -1,0 +1,68 @@
+version: 2
+
+models:
+  - name: stg_openweather__air_quality
+    description: >
+      Staged air quality observations from the OpenWeather Air Pollution API.
+      Each row represents a single observation for a specific coordinate and timestamp.
+      Raw JSON is flattened and typed; surrogate key is generated from lat, lon, and observation_ts.
+
+    columns:
+      - name: air_quality_id
+        description: "Surrogate key generated from lat, lon, and observation_ts."
+        tests:
+          - unique
+          - not_null
+
+      - name: lat
+        description: "Latitude of the observation point."
+        tests:
+          - not_null
+
+      - name: lon
+        description: "Longitude of the observation point."
+        tests:
+          - not_null
+
+      - name: observation_ts
+        description: "UTC timestamp of the air quality observation."
+        tests:
+          - not_null
+
+      - name: aqi
+        description: "Air Quality Index (1 = Good, 2 = Fair, 3 = Moderate, 4 = Poor, 5 = Very Poor)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4, 5]
+                quote: false
+
+      - name: co
+        description: "Carbon monoxide concentration, μg/m³."
+
+      - name: "no"
+        description: "Nitrogen monoxide concentration, μg/m³."
+
+      - name: no2
+        description: "Nitrogen dioxide concentration, μg/m³."
+
+      - name: o3
+        description: "Ozone concentration, μg/m³."
+
+      - name: so2
+        description: "Sulphur dioxide concentration, μg/m³."
+
+      - name: pm2_5
+        description: "Fine particulate matter (PM2.5) concentration, μg/m³."
+
+      - name: pm10
+        description: "Coarse particulate matter (PM10) concentration, μg/m³."
+
+      - name: nh3
+        description: "Ammonia concentration, μg/m³."
+
+      - name: _source_file
+        description: "S3 source file path from which the record was loaded."
+
+      - name: _stg_loaded_at
+        description: "Timestamp when the record was loaded into the warehouse."

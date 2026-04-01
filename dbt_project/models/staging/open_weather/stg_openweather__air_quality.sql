@@ -1,0 +1,80 @@
+with source as (
+
+    select raw_payload, _source_file, _raw_loaded_at
+    from {{ source('openweather', 'raw_air_pollution') }}
+
+),
+
+flattened as (
+
+    select
+        raw_payload:coord.lat::float as lat,
+        raw_payload:coord.lon::float as lon,
+        
+        to_timestamp_ntz(f.value:dt::number) as observation_ts,
+
+        f.value:main.aqi::int as aqi,
+
+        -- safe cast
+        try_cast(f.value:components.co::string as float) as co,
+        try_cast(f.value:components.no::string as float) as no,
+        try_cast(f.value:components.no2::string as float) as no2,
+        try_cast(f.value:components.o3::string as float) as o3,
+        try_cast(f.value:components.so2::string as float) as so2,
+        try_cast(f.value:components.pm2_5::string as float) as pm2_5,
+        try_cast(f.value:components.pm10::string as float) as pm10,
+        try_cast(f.value:components.nh3::string as float) as nh3,
+
+        _source_file,
+        _raw_loaded_at,
+        '{{ run_started_at }}'::timestamp_tz as _stg_loaded_at
+    from source,
+    lateral flatten(input => raw_payload:list) f
+
+),
+
+hashed as (
+    select
+        {{ dbt_utils.generate_surrogate_key([
+            'lat', 
+            'lon', 
+            'observation_ts'
+        ]) }} as air_quality_id,
+        *
+    from flattened
+),
+
+deduplicated as (
+    select *
+    from hashed
+    qualify row_number() over (
+        partition by air_quality_id
+        order by _raw_loaded_at desc
+    ) = 1
+),
+
+final as (
+    
+    select
+
+        air_quality_id,
+        lat,
+        lon,
+        observation_ts,
+        aqi,
+        co,
+        no,
+        no2,
+        o3,
+        so2,
+        pm2_5,
+        pm10,
+        nh3,
+        
+        _source_file,
+        _stg_loaded_at
+        
+    from deduplicated      
+)
+
+select * from final
