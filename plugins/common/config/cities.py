@@ -1,8 +1,8 @@
 from pathlib import Path
+import csv
 
 from pydantic import BaseModel
 
-from plugins.common.utils import load_yaml
 
 
 class City(BaseModel):
@@ -20,43 +20,37 @@ class City(BaseModel):
     lon: float
 
 
-class CitiesConfig(BaseModel):
+def get_cities_config(config_path: Path | None = None) -> list[City]:
     """
-    Container for a collection of City objects loaded from configuration.
+    Load and parse city coordinates from a CSV configuration file.
 
-    Attributes:
-        cities (list[City]): List of City objects parsed from the configuration file.
-    """
-
-    cities: list[City]
-
-
-def get_cities_config(config_path: Path | None = None) -> CitiesConfig:
-    """
-    Loads and parses the cities configuration file.
-
-    This function reads a YAML configuration file containing city data,
-    validates it against the CitiesConfig schema, and returns a structured object.
-    If no config path is provided, it defaults to cities_config.yml in the same directory.
+    The CSV file must contain the columns: ``name``, ``lat``, and ``lon``.
+    Each row is converted to a ``City`` model. If no path is provided,
+    the function reads ``cities_config.csv`` from this module directory.
 
     Args:
-        config_path (Optional[Path]): Path to the YAML configuration file. If None,
-            defaults to cities_config.yml in the same directory as this module.
+        config_path (Path | None): Path to the CSV configuration file.
 
     Returns:
-        CitiesConfig: A validated configuration object containing all configured cities.
+        list[City]: Parsed and validated list of cities.
 
     Raises:
-        FileNotFoundError: If the specified configuration file is not found.
-        yaml.YAMLError: If there is an error parsing the YAML file.
-        pydantic.ValidationError: If the configuration data doesn't match the CitiesConfig schema.
+        FileNotFoundError: If the configuration file does not exist.
+        KeyError: If one of the required CSV columns is missing.
+        ValueError: If latitude or longitude cannot be converted to float.
     """
     # Use default config path if none provided
     if config_path is None:
-        config_path = Path(__file__).parent / "cities_config.yml"
+        config_path = Path(__file__).parent / "cities_config.csv"
 
-    # Load and parse the raw YAML data
-    raw_data = load_yaml(config_path)
+    with open(config_path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        return [
+            City(
+                name=row["name"],
+                lat=float(row["lat"]),
+                lon=float(row["lon"]),
+            )
+            for row in reader
+        ]
 
-    # Validate and structure the data into CitiesConfig object
-    return CitiesConfig(**raw_data)

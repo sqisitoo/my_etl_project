@@ -21,9 +21,9 @@ def air_pollution_snowflake_dag():
     def get_cities_config():
         from plugins.common.config.cities import get_cities_config
 
-        config_obj = get_cities_config()
+        cities = get_cities_config()
 
-        return [city.model_dump() for city in config_obj.cities]
+        return [city.model_dump() for city in cities]
 
     @task
     def extract_data(city_info: dict, logical_date, data_interval_start, data_interval_end):
