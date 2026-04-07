@@ -41,7 +41,8 @@ def get_cities_config(config_path: Path | None = None) -> list[City]:
     """
     # Use default config path if none provided
     if config_path is None:
-        config_path = Path(__file__).parent / "cities_config.csv"
+        project_root = Path(__file__).resolve().parents[3]
+        config_path = project_root / "dbt_project" / "seeds" / "cities_config.csv"
 
     with open(config_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
