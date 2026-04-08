@@ -8,8 +8,8 @@ with source as (
 flattened as (
 
     select
-        raw_payload:coord.lat::float as lat,
-        raw_payload:coord.lon::float as lon,
+        raw_payload:coord.lat::float as latitude,
+        raw_payload:coord.lon::float as longitude,
         
         to_timestamp_ntz(f.value:dt::number) as observation_ts,
 
@@ -36,8 +36,8 @@ flattened as (
 hashed as (
     select
         {{ dbt_utils.generate_surrogate_key([
-            'lat', 
-            'lon', 
+            'latitude', 
+            'longitude', 
             'observation_ts'
         ]) }} as air_quality_id,
         *
@@ -58,8 +58,8 @@ final as (
     select
 
         air_quality_id,
-        lat,
-        lon,
+        latitude,
+        longitude,
         observation_ts,
         aqi,
         co,
