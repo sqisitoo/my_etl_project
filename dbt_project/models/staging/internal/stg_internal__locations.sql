@@ -9,7 +9,7 @@ casted_and_renamed as (
         try_cast(lat::string as float) as latitude,
         try_cast(lon::string as float) as longitude
     from source
-)
+),
 
 hashed as (
     select 
