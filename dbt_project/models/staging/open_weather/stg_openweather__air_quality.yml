@@ -14,12 +14,12 @@ models:
           - unique
           - not_null
 
-      - name: lat
+      - name: latitude
         description: "Latitude of the observation point."
         tests:
           - not_null
 
-      - name: lon
+      - name: longitude
         description: "Longitude of the observation point."
         tests:
           - not_null

@@ -21,9 +21,9 @@ def air_pollution_dag():
     def get_cities_config():
         from plugins.common.config.cities import get_cities_config
 
-        config_obj = get_cities_config()
+        cities = get_cities_config()
 
-        return [city.model_dump() for city in config_obj.cities]
+        return [city.model_dump() for city in cities]
 
     init_table = SQLExecuteQueryOperator(
         task_id="init_schema", sql="pipelines/air_pollution/sql/init_schema.sql", conn_id="my_postgres_dwh"
