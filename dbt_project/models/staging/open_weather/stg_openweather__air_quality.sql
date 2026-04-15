@@ -33,6 +33,28 @@ flattened as (
 
 ),
 
+rounded as (
+    select
+        round(latitude, 4) as latitude,
+        round(longitude) as longitude,
+
+        observation_ts,
+        aqi,
+        co,
+        no,
+        no2,
+        o3,
+        so2,
+        pm2_5,
+        pm10,
+        nh3,
+        _source_file,
+        _raw_loaded_at,
+        _stg_loaded_at
+    from flattened
+
+),
+
 hashed as (
     select
         {{ dbt_utils.generate_surrogate_key([
@@ -40,12 +62,42 @@ hashed as (
             'longitude', 
             'observation_ts'
         ]) }} as air_quality_id,
-        *
-    from flattened
+
+        latitude,
+        longitude,
+        observation_ts,
+        aqi,
+        co,
+        no,
+        no2,
+        o3,
+        so2,
+        pm2_5,
+        pm10,
+        nh3,
+        _source_file,
+        _raw_loaded_at,
+        _stg_loaded_at
+    from rounded
 ),
 
 deduplicated as (
-    select *
+    select
+        air_quality_id,
+        latitude,
+        longitude,
+        observation_ts,
+        aqi,
+        co,
+        no,
+        no2,
+        o3,
+        so2,
+        pm2_5,
+        pm10,
+        nh3,
+        _source_file,
+        _stg_loaded_at
     from hashed
     qualify row_number() over (
         partition by air_quality_id
