@@ -36,7 +36,7 @@ flattened as (
 rounded as (
     select
         round(latitude, 4) as latitude,
-        round(longitude) as longitude,
+        round(longitude, 4) as longitude,
 
         observation_ts,
         aqi,
