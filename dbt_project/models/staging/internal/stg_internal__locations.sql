@@ -11,6 +11,14 @@ casted_and_renamed as (
     from source
 ),
 
+rounded as (
+    select
+        city_name,
+        round(latitude, 4) as latitude,
+        round(longitude, 4) as longitude
+    from casted_and_renamed
+),
+
 hashed as (
     select 
         {{ dbt_utils.generate_surrogate_key([
@@ -21,7 +29,7 @@ hashed as (
         city_name,
         latitude,
         longitude
-    from casted_and_renamed
+    from rounded
 ),
 
 final as (
