@@ -2,11 +2,11 @@ version: 2
 
 models:
   - name: fct_air_quality
-    description: >
+    description: "Fact table containing air quality observations and pollutant concentrations for configured locations."
 
     columns:
       - name: air_quality_id
-        description: 
+        description: "Surrogate key uniquely identifying each air quality observation."
         tests:
           - unique
           - not_null
@@ -16,8 +16,9 @@ models:
         tests:
           - not_null
           - relationships:
-              to: ref('dim_location')
-              field: location_id
+              arguments:
+                to: ref('dim_location')
+                field: location_id
 
       - name: observation_ts
         description: "UTC timestamp of the air quality observation."
