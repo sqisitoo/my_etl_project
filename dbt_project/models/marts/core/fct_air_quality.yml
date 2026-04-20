@@ -1,0 +1,53 @@
+version: 2
+
+models:
+  - name: fct_air_quality
+    description: "Fact table containing air quality observations and pollutant concentrations for configured locations."
+
+    columns:
+      - name: air_quality_id
+        description: "Surrogate key uniquely identifying each air quality observation."
+        tests:
+          - unique
+          - not_null
+      
+      - name: location_id
+        description: "Surrogate key generated for each configured location."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_location')
+                field: location_id
+
+      - name: observation_ts
+        description: "UTC timestamp of the air quality observation."
+        tests:
+          - not_null
+
+      - name: aqi
+        description: "Air Quality Index (1 = Good, 2 = Fair, 3 = Moderate, 4 = Poor, 5 = Very Poor)."
+
+      - name: co
+        description: "Carbon monoxide concentration, μg/m³."
+
+      - name: "no"
+        description: "Nitrogen monoxide concentration, μg/m³."
+
+      - name: no2
+        description: "Nitrogen dioxide concentration, μg/m³."
+
+      - name: o3
+        description: "Ozone concentration, μg/m³."
+
+      - name: so2
+        description: "Sulphur dioxide concentration, μg/m³."
+
+      - name: pm2_5
+        description: "Fine particulate matter (PM2.5) concentration, μg/m³."
+
+      - name: pm10
+        description: "Coarse particulate matter (PM10) concentration, μg/m³."
+
+      - name: nh3
+        description: "Ammonia concentration, μg/m³."
