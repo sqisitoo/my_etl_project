@@ -58,10 +58,19 @@ def air_pollution_snowflake_dag():
         conn_id="snowflake_conn",
     )
 
+    @task.bash
+    def run_dbt():
+        return "$DBT_VENV_PATH/bin/dbt build \
+                --project-dir $DBT_PROJECT_DIR \
+                --profiles-dir $DBT_PROFILES_DIR"
+    
+
     get_cities_config_task = get_cities_config()
     extract_tasks_group = extract_data.expand(city_info=get_cities_config_task)
+    run_dbt_task = run_dbt()
 
-    extract_tasks_group >> load_raw_data
+    extract_tasks_group >> load_raw_data >> run_dbt_task
+
 
 
 air_pollution_snowflake_dag()
