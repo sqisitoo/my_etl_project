@@ -59,6 +59,10 @@ def air_pollution_snowflake_dag():
     )
 
     @task.bash
+    def run_dbt_source_freshness():
+        return "$DBT_VENV_PATH/bin/dbt source freshness"
+
+    @task.bash
     def run_dbt():
         return "$DBT_VENV_PATH/bin/dbt build \
                 --project-dir $DBT_PROJECT_DIR \
@@ -67,9 +71,10 @@ def air_pollution_snowflake_dag():
 
     get_cities_config_task = get_cities_config()
     extract_tasks_group = extract_data.expand(city_info=get_cities_config_task)
+    run_dbt_source_freshness_task = run_dbt_source_freshness()
     run_dbt_task = run_dbt()
 
-    extract_tasks_group >> load_raw_data >> run_dbt_task
+    extract_tasks_group >> load_raw_data >> run_dbt_source_freshness_task >> run_dbt_task
 
 
 

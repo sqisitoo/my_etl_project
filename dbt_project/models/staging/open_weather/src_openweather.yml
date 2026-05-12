@@ -8,3 +8,8 @@ sources:
       - name: raw_air_pollution
         identifier: RAW_AIR_POLLUTION
         description: "Raw JSON payloads from OpenWeatherMap Air Pollution API"
+        config:
+          freshness:
+            warn_after: {count: 1, period: hour}
+            error_after: {count: 3, period: hour}
+          loaded_at_field: _RAW_LOADED_AT
