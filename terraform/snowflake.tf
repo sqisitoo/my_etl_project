@@ -101,7 +101,7 @@ resource "snowflake_table" "raw_air_pollution" {
     type     = "TIMESTAMP_NTZ(9)"
     nullable = false
     default {
-      expression = "CURRENT_TIMESTAMP()"
+      expression = "SYSDATE()"
     }
   }
 
