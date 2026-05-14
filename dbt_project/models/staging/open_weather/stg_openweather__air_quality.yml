@@ -66,3 +66,9 @@ models:
 
       - name: _stg_loaded_at
         description: "Timestamp when the record was loaded into the warehouse."
+
+    tests:
+      - dbt_utils.recency:
+          datepart: day
+          field: observation_ts
+          interval: 2
