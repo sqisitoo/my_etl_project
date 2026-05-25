@@ -4,6 +4,7 @@ from airflow.models import DagBag
 DAGS_FOLDER = "dags"
 DAG_ID = "air_pollution_snowflake_dag"
 
+
 @pytest.fixture(scope="module")
 def dag_bag():
     """Load DAGs once per module; module scope avoids repeated filesystem parsing."""
@@ -64,5 +65,14 @@ def test_air_pollution_dag_dependencies(air_pollution_dag):
     assert extract_data in load_air_pollution.upstream_list
     assert load_air_pollution in run_dbt_source_freshness.upstream_list
     assert run_dbt_source_freshness in run_dbt.upstream_list
+
+def test_dbt_tasks_bash_commands_use_env_vars(air_pollution_dag):
+    for task_id in ("run_dbt_source_freshness", "run_dbt"):
+        cmd = air_pollution_dag.get_task(task_id).bash_command
+        assert "$DBT_VENV_PATH" in cmd
+        assert "$DBT_TARGET" in cmd
+        assert "$DBT_PROJECT_DIR" in cmd
+        assert "$DBT_PROFILES_DIR" in cmd
+
 
 

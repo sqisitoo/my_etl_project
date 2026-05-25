@@ -1,9 +1,11 @@
 from datetime import datetime, timedelta
 
+from airflow.operators.bash import BashOperator
 from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator
 from airflow.sdk import dag, task
 
 from plugins.common.config import settings
+from plugins.common.utils.dbt import build_dbt_command
 
 PLUGINS_DIR = "/opt/airflow/plugins"
 
@@ -17,6 +19,7 @@ PLUGINS_DIR = "/opt/airflow/plugins"
     default_args={"retries": 2, "retry_delay": timedelta(minutes=1)},
 )
 def air_pollution_snowflake_dag():
+
     @task
     def get_cities_config():
         from plugins.common.config.cities import get_cities_config
@@ -58,23 +61,21 @@ def air_pollution_snowflake_dag():
         conn_id="snowflake_conn",
     )
 
-    @task.bash
-    def run_dbt_source_freshness():
-        return "$DBT_VENV_PATH/bin/dbt source freshness"
 
-    @task.bash
-    def run_dbt():
-        return "$DBT_VENV_PATH/bin/dbt build \
-                --project-dir $DBT_PROJECT_DIR \
-                --profiles-dir $DBT_PROFILES_DIR"
-    
+    run_dbt_source_freshness = BashOperator(
+        task_id="run_dbt_source_freshness",
+        bash_command=build_dbt_command("source freshness"),
+    )
+
+    run_dbt = BashOperator(
+        task_id="run_dbt",
+        bash_command=build_dbt_command("build"),
+    )
 
     get_cities_config_task = get_cities_config()
     extract_tasks_group = extract_data.expand(city_info=get_cities_config_task)
-    run_dbt_source_freshness_task = run_dbt_source_freshness()
-    run_dbt_task = run_dbt()
 
-    extract_tasks_group >> load_raw_data >> run_dbt_source_freshness_task >> run_dbt_task
+    extract_tasks_group >> load_raw_data >> run_dbt_source_freshness >> run_dbt
 
 
 
