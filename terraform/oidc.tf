@@ -31,7 +31,7 @@ data "aws_iam_policy_document" "github_actions_assume_role" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:sqisitoo/my_etl_project:ref:refs/heads/main"]
+      values   = ["repo:sqisitoo/my_elt_project:ref:refs/heads/main"]
     }
   }
 }
