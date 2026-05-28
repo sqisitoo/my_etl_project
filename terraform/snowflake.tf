@@ -158,7 +158,7 @@ resource "snowflake_grant_privileges_to_account_role" "airflow_db" {
 resource "snowflake_grant_privileges_to_account_role" "airflow_schema_usage" {
 
   account_role_name = snowflake_account_role.airflow.name
-  privileges        = ["USAGE"]
+  privileges        = ["USAGE", "CREATE TABLE", "CREATE VIEW", "CREATE STAGE"]
 
   on_schema {
     schema_name = "${snowflake_database.raw_db.name}.${snowflake_schema.raw_air_pollution.name}"
@@ -168,7 +168,7 @@ resource "snowflake_grant_privileges_to_account_role" "airflow_schema_usage" {
 resource "snowflake_grant_privileges_to_account_role" "airflow_tables_usage" {
 
   account_role_name = snowflake_account_role.airflow.name
-  privileges        = ["SELECT", "INSERT"]
+  privileges        = ["SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE"]
 
   on_schema_object {
     all {
@@ -181,7 +181,7 @@ resource "snowflake_grant_privileges_to_account_role" "airflow_tables_usage" {
 resource "snowflake_grant_privileges_to_account_role" "airflow_tables_usage_feature" {
 
   account_role_name = snowflake_account_role.airflow.name
-  privileges        = ["SELECT", "INSERT"]
+  privileges        = ["SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE"]
 
   on_schema_object {
     future {
